@@ -96,6 +96,9 @@ for (const [opts, pre] of [
     const tk = (await page.getByTestId("ticket").boundingBox())!;
     const cb = (await car.boundingBox())!;
     expect(cb.y, "輪播在號碼卡下方").toBeGreaterThanOrEqual(tk.y + tk.height);
+    const nc = (await page.getByTestId("notify-card").boundingBox())!;
+    expect(cb.y, "輪播在提醒卡之後（不把提醒推出首屏）").toBeGreaterThanOrEqual(nc.y + nc.height);
+    expect(await inFirstScreen(page, "notify-card"), "提醒卡在首屏").toBe(true);
     expect(Math.abs(cb.width / (cb.height - 22) - 1.5), "輪播 3:2（扣掉指示點列）").toBeLessThan(0.08);
     await expect.poll(() => page.evaluate(() => Array.from(document.querySelectorAll<HTMLImageElement>('[data-testid="carousel"] img')).filter((i) => i.naturalWidth > 0).length)).toBeGreaterThan(0);
     expect(await brokenImages(page)).toBe(0);

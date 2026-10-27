@@ -467,11 +467,11 @@ test("載入狀態與讀取失敗：骨架畫面、錯誤＋重試", async ({ br
 test("門店停用：門店後台顯示「服務已暫停」；恢復後可再使用", async ({ browser, request }) => {
   const s = seed("SMOKE1");
   const page = await storeLogin(browser, s);
-  expect((await request.post(`${URLS.api}/api/admin/stores/${s.id}/suspend`)).status()).toBe(200);
+  expect((await request.post(`${URLS.api}/api/admin/stores/${s.id}/suspend`, { headers: { "x-qcs-admin": "1" } })).status()).toBe(200);
   await page.reload();
   await page.getByTestId("suspended").waitFor();
   await check(page, "store-37-suspended");
-  expect((await request.post(`${URLS.api}/api/admin/stores/${s.id}/resume`)).status()).toBe(200);
+  expect((await request.post(`${URLS.api}/api/admin/stores/${s.id}/resume`, { headers: { "x-qcs-admin": "1" } })).status()).toBe(200);
   await page.reload();
   await page.getByTestId("board").waitFor();
   await page.context().close();

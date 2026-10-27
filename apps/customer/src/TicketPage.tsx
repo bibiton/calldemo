@@ -134,9 +134,10 @@ export function TicketPage({
           {t.status === "cancelled" && <p>號碼已取消</p>}
         </div>
       </section>
-      {t.status === "waiting" && !!saved.store.images?.length && <ImageCarousel images={saved.store.images} />}
-
       {!ended && <NotifyCard saved={saved} push={push} conn={conn} onEnable={() => void enablePush()} />}
+
+      {/* 門店圖片放在提醒卡之後：不把「開啟背景提醒」／iOS 教學推出首屏（ADR-048） */}
+      {t.status === "waiting" && !!saved.store.images?.length && <ImageCarousel images={saved.store.images} />}
 
       <div className="mt-6">
         {t.status === "waiting" && !confirmCancel && (
