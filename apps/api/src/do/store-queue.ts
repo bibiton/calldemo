@@ -59,6 +59,7 @@ export type TakeResult =
   | { ok: false; status: number; code: string };
 
 interface Row {
+  [k: string]: SqlStorageValue;
   id: string;
   business_date: string;
   service_id: string;

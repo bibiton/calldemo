@@ -42,7 +42,7 @@ describe("QcsSocket", () => {
     const s = new QcsSocket({
       url: (lastSeq) => `ws://x/ws?lastSeq=${lastSeq ?? ""}`,
       protocols: () => ["qcs.v1"],
-      WebSocketImpl: FakeWS as unknown as typeof WebSocket,
+      WebSocketImpl: FakeWS as any,
       onMessage: (m) => got.push(m),
       random: () => 0.5,
       ...extra,

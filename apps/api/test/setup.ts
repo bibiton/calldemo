@@ -1,4 +1,4 @@
 import { applyD1Migrations } from "cloudflare:test";
-import { env } from "cloudflare:workers";
+import { env } from "./test-env";
 
-await applyD1Migrations((env as any).DB, (env as any).TEST_MIGRATIONS);
+await applyD1Migrations(env.DB, env.TEST_MIGRATIONS);

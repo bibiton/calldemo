@@ -1,4 +1,4 @@
-import { env } from "cloudflare:workers";
+import { env } from "./test-env";
 import type { StoreCtx } from "../src/do/store-queue";
 
 export const TZ = "Asia/Taipei";

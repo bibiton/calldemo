@@ -8,7 +8,7 @@ describe("T1 並發取號不重號", () => {
     const id = uniq();
     const res = await Promise.all(Array.from({ length: 200 }, (_, i) => take(id, i)));
     expect(res.every((r) => r.ok)).toBe(true);
-    const nos = res.map((r: any) => Number(r.ticket.number.slice(1))).sort((a, b) => a - b);
+    const nos = res.map((r: any): number => Number(r.ticket.number.slice(1))).sort((a: number, b: number) => a - b);
     expect(nos).toEqual(Array.from({ length: 200 }, (_, i) => i + 1));
   });
   it("不同服務類別各自編號", async () => {

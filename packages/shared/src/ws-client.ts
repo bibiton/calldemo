@@ -4,12 +4,24 @@ export const PONG_TIMEOUT_MS = 10_000;
 
 export type SocketStatus = "connecting" | "open" | "closed" | "suspended";
 
+/** 只依賴最小介面，shared 也能在 Workers 型別下編譯。 */
+export interface WsLike {
+  readyState: number;
+  send(data: string): void;
+  close(code?: number): void;
+  onopen: ((e?: any) => void) | null;
+  onmessage: ((e: { data: any }) => void) | null;
+  onclose: ((e: { code: number }) => void) | null;
+  onerror: ((e?: any) => void) | null;
+}
+export type WsCtor = new (url: string, protocols?: string[]) => WsLike;
+
 export interface QcsSocketOptions {
   url: (lastSeq: number | null) => string;
   protocols: () => string[];
   onMessage: (msg: any) => void;
   onStatus?: (s: SocketStatus, closeCode?: number) => void;
-  WebSocketImpl?: typeof WebSocket;
+  WebSocketImpl?: WsCtor;
   gapCheck?: boolean;
   initialLastSeq?: number | null;
   onSeq?: (seq: number) => void;
@@ -25,7 +37,7 @@ export function backoffDelay(attempt: number, random: () => number = Math.random
 
 export class QcsSocket {
   lastSeq: number | null;
-  private ws: WebSocket | null = null;
+  private ws: WsLike | null = null;
   private attempt = 0;
   private stopped = false;
   private pingTimer: ReturnType<typeof setInterval> | null = null;
@@ -65,7 +77,7 @@ export class QcsSocket {
   }
 
   private connect(): void {
-    const Impl = this.o.WebSocketImpl ?? WebSocket;
+    const Impl = this.o.WebSocketImpl ?? ((globalThis as any).WebSocket as WsCtor);
     this.o.onStatus?.("connecting");
     const ws = new Impl(this.o.url(this.lastSeq), this.o.protocols());
     this.ws = ws;
@@ -75,11 +87,11 @@ export class QcsSocket {
       this.o.onStatus?.("open");
       this.pingTimer = setInterval(() => this.ping(), PING_EVERY_MS);
     };
-    ws.onmessage = (e: MessageEvent) => {
+    ws.onmessage = (e) => {
       if (this.ws !== ws) return;
       this.handle(String(e.data));
     };
-    ws.onclose = (e: CloseEvent) => {
+    ws.onclose = (e) => {
       if (this.ws !== ws) return;
       this.ws = null;
       this.clearTimers();
