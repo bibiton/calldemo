@@ -79,7 +79,11 @@ const stores = [
     hours: [0, 1, 2, 3, 4, 5, 6].map((dow) => ({ dow, open: "11:00", close: "21:30" })),
     voice: { mode: "standard" },
   },
-  { id: "st_smoke", code: "SMOKE1", name: "smoke 測試門店", hours: [], voice: {} },
+  { id: "st_smoke", code: "SMOKE1", name: "smoke 測試門店", hours: [], voice: {}, internal: true },
+  // 總後台各狀態（M4）：停用、到期、廣告容量將滿＋面板無法出聲
+  { id: "st_demo_bq", code: "DEMO03", name: "示範門市 板橋店", hours: [], voice: {}, status: "suspended" },
+  { id: "st_demo_ty", code: "DEMO05", name: "示範門市 桃園店", hours: [], voice: {}, expired: true },
+  { id: "st_demo_xz", code: "DEMO04", name: "示範門市 新莊店", hours: [], voice: {}, adBytes: 48_000_000, mutedPanel: true },
   // 空門店：門店後台各頁「空狀態」的畫面（沒有櫃台、人員、裝置、廣告、歷史）
   { id: "st_empty", code: "EMPTY1", name: "新開幕測試店", hours: [], voice: {}, empty: true },
 ];
@@ -96,12 +100,12 @@ for (const s of stores) {
       brand_id: "brand_default",
       code: s.code,
       name: s.name,
-      status: "active",
-      expires_at: null,
+      status: s.status ?? "active",
+      expires_at: s.expired ? now - 2 * 86400_000 : s.id === "st_demo_zs" ? now + 200 * 86400_000 : null,
       max_devices: 2,
       max_staff: 10,
       ad_quota_bytes: 524288000,
-      features: JSON.stringify({ push: true, ads: true, voice: true, showMaskedName: false, demo: true }),
+      features: JSON.stringify({ push: true, ads: true, voice: true, showMaskedName: false, demo: true, ...(s.internal ? { internal: true } : {}) }),
       timezone: "Asia/Taipei",
       business_hours: JSON.stringify(s.hours),
       qr_key_version: 1,
@@ -148,7 +152,13 @@ for (const s of stores) {
     ),
   );
   const dev = (id, kind, name) =>
-    row("devices", { id, store_id: s.id, kind, name, pairing_code: null, pairing_expires_at: null, token_version: 1, counter_id: null, last_seen_at: null, client_kind: null, audio_status: null, audio_status_at: null, status: "active", created_at: now });
+    row("devices", {
+      id, store_id: s.id, kind, name, pairing_code: null, pairing_expires_at: null, token_version: 1, counter_id: null, last_seen_at: null,
+      client_kind: s.mutedPanel && kind === "display" ? "browser" : null,
+      audio_status: s.mutedPanel && kind === "display" ? "blocked" : null,
+      audio_status_at: s.mutedPanel && kind === "display" ? now - 12 * 60_000 : null,
+      status: "active", created_at: now,
+    });
   sql.push(dev(`${s.id}_d1`, "display", "叫號面板 1"));
   sql.push(dev(`${s.id}_sd1`, "staff_device", "櫃台手機 1"));
   const exp = Math.floor(now / 1000) + YEAR;
@@ -162,11 +172,12 @@ for (const s of stores) {
   sql.push(row("ad_playlists", { id: `${s.id}_pl`, owner_type: "store", owner_id: s.id, version: 1, accept_brand: 1, updated_at: now }));
   assets.forEach(([file, kind, mime], i) => {
     const id = `${s.id}_ad${i + 1}`;
-    sql.push(row("ad_assets", { id, owner_type: "store", owner_id: s.id, kind, r2_key: `demo-ads/${file}`, sha256: `demo-${file}`, mime, bytes: 1000, width: 1080, height: 720, duration_ms: kind === "video" ? 8000 : null, status: "ready", created_by: null, created_at: now }));
+    sql.push(row("ad_assets", { id, owner_type: "store", owner_id: s.id, kind, r2_key: `demo-ads/${file}`, sha256: `demo-${file}`, mime, bytes: s.adBytes ?? 1000, width: 1080, height: 720, duration_ms: kind === "video" ? 8000 : null, status: "ready", created_by: null, created_at: now }));
     sql.push(row("ad_playlist_items", { id: `${s.id}_it${i + 1}`, playlist_id: `${s.id}_pl`, asset_id: id, sort_order: i, duration_ms: kind === "image" ? 6000 : null, active_from: null, active_to: null, active_dows: "[0,1,2,3,4,5,6]", start_date: null, end_date: null, enabled: 1 }));
   });
 
   if (s.id === "st_demo_zs") sql.push(...demoHistory(s.id));
+  sql.push(...demoUsage(s.id, { st_demo_zs: 1, st_demo_xy: 0.45, st_demo_xz: 0.7, st_demo_bq: 0.3, st_demo_ty: 0.25, st_smoke: 0.02 }[s.id] ?? 0));
   out.stores.push({
     id: s.id,
     code: s.code,
@@ -181,6 +192,37 @@ for (const s of stores) {
       staff: `http://localhost:5173/?device=${staffDeviceToken}`,
     },
   });
+}
+
+/**
+ * 總後台用量頁示範（M4）：過去 35 個 UTC 日的每小時用量（台北 11～21 點營業）。固定亂數種子。
+ * 中山店前一晚台北 03:00 有 14 次夜間喚醒 → 「夜間 DO 未休眠」警示。日／月彙總由 API 查詢時補算。
+ */
+function demoUsage(storeId, scale) {
+  if (!scale) return [];
+  let x = storeId.split("").reduce((a, c) => a * 31 + c.charCodeAt(0), 7) >>> 0;
+  const rnd = () => ((x = (x * 1103515245 + 12345) % 2147483648) / 2147483648);
+  const out = [];
+  const today = Date.UTC(new Date(now).getUTCFullYear(), new Date(now).getUTCMonth(), new Date(now).getUTCDate());
+  for (let d = 35; d >= 1; d--) {
+    const day = today - d * 86400_000;
+    const weekend = [0, 6].includes(new Date(day + 8 * 3600_000).getUTCDay());
+    for (let h = 3; h <= 13; h++) {
+      const peak = h === 4 || h === 10 || h === 11 ? 1.8 : 1;
+      const tickets = Math.round((8 + rnd() * 10) * peak * (weekend ? 1.3 : 1) * scale);
+      out.push(row("usage_hourly", {
+        store_id: storeId, hour_start: day + h * 3600_000,
+        api_requests: tickets * 7 + Math.round(rnd() * 20 * scale), api_errors: rnd() < 0.05 ? 1 : 0, api_wall_ms: tickets * 7 * 35,
+        ws_connects: 2 + Math.round(tickets * 0.8), ws_messages: Math.round(tickets * 3.2), do_rpc: tickets * 3, do_alarms: h === 13 ? 1 : 0,
+        do_wakes: 6 + Math.round(rnd() * 8), do_night_wakes: 0, do_events: tickets * 5, do_rows_written: tickets * 12,
+        tickets, calls: Math.round(tickets * 1.1), push_sent: Math.round(tickets * 0.6), push_failed: rnd() < 0.2 ? 1 : 0,
+      }));
+    }
+    if (storeId === "st_demo_zs" && d === 1) {
+      out.push(row("usage_hourly", { store_id: storeId, hour_start: day + 19 * 3600_000, api_requests: 0, api_errors: 0, api_wall_ms: 0, ws_connects: 14, ws_messages: 0, do_rpc: 0, do_alarms: 0, do_wakes: 0, do_night_wakes: 14, do_events: 0, do_rows_written: 0, tickets: 0, calls: 0, push_sent: 0, push_failed: 0 }));
+    }
+  }
+  return out;
 }
 
 /**
@@ -214,6 +256,17 @@ function demoHistory(storeId) {
   return out;
 }
 
+// 平台本身（健康檢查、配對等不屬於門店的請求）與上個月的帳單（總後台分攤示範）
+{
+  const today = Date.UTC(new Date(now).getUTCFullYear(), new Date(now).getUTCMonth(), new Date(now).getUTCDate());
+  for (let d = 35; d >= 1; d--) sql.push(row("usage_hourly", { store_id: "_platform", hour_start: today - d * 86400_000 + 2 * 3600_000, api_requests: 288 }));
+  const last = new Date(Date.UTC(new Date(now).getUTCFullYear(), new Date(now).getUTCMonth() - 1, 1)).toISOString().slice(0, 7);
+  const bill = { workers_base: 5, workers_requests: 0, workers_cpu: 0, do_requests: 0, do_duration: 0, do_storage: 0, d1: 0, kv: 0, r2: 0, queues: 0, analytics_engine: 0, other: 0.37 };
+  for (const [item, amt] of Object.entries(bill)) {
+    if (amt) sql.push(row("billing_inputs", { month: last, line_item: item, amount_usd: amt, source: "invoice", entered_by: "dev@local", entered_at: now }));
+  }
+}
+
 const sqlFile = join(apiDir, ".wrangler/seed.sql");
 mkdirSync(dirname(sqlFile), { recursive: true });
 writeFileSync(sqlFile, sql.join("\n") + "\n");
@@ -234,4 +287,5 @@ for (const s of out.stores.filter((x) => x.id !== "st_smoke" && x.urls)) {
   console.log(`  人員 PIN：${s.staff.map((u) => `${u.name} ${u.pin}`).join("、")}`);
   console.log(`  門店後台：http://localhost:5172/  ${s.adminEmail} ／ ${s.adminPassword}\n`);
 }
+console.log("【總後台】http://localhost:5171/（本機以 DEV_BYPASS_ACCESS 免 Access，身分 dev@local）");
 console.log(`（完整輸出：${outFile}）`);

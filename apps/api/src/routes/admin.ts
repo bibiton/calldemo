@@ -11,6 +11,7 @@ import { invalidateDevice, invalidateStaff } from "../lib/auth";
 import { invalidateUserCache } from "../lib/admin-auth";
 import { licenseError, refreshStore, toCtx } from "../lib/store-ctx";
 import { storeAlerts } from "../usage/alerts";
+import { ensureDaily } from "../usage/rollup";
 import { err, isInt, isStr, type AppEnv, type C, type Deps } from "./common";
 import { registerUsageRoutes } from "./admin-usage";
 import type { AeFetch } from "../usage/ae";
@@ -153,6 +154,9 @@ export function adminRoutes(deps: Deps & { aeFetch: AeFetch }) {
       binds.push(`%${q}%`, `%${q.toUpperCase()}%`);
     }
     const month = new Date(now()).toISOString().slice(0, 7);
+    // 本月成本與警示要用到的日彙總（缺的過去日子補算；已算過的不重算）
+    const from = [`${month}-01`, new Date(now() - 8 * 86400_000).toISOString().slice(0, 10)].sort()[0];
+    await ensureDaily(c.env, from, new Date(now()).toISOString().slice(0, 10), now());
     const rows = await c.env.DB.prepare(
       `SELECT s.*, b.name AS brand_name,
         (SELECT count(*) FROM devices d WHERE d.store_id=s.id AND d.kind='display' AND d.status='active') AS displays,
@@ -163,6 +167,9 @@ export function adminRoutes(deps: Deps & { aeFetch: AeFetch }) {
     let list = rows.results.map((x) => ({ ...storeOut(x, now()), displays: x.displays, monthEstUsd: x.month_est ?? 0, monthAllocatedUsd: x.month_alloc ?? null }));
     if (["active", "suspended", "expired"].includes(status)) list = list.filter((s) => s.status === status);
     const alerts = await storeAlerts(c.env, list.map((s) => s.id), now());
+    // 有紅色警示的排最前、再來黃色，其餘依門店碼
+    const rank = (id: string) => (alerts.get(id) ?? []).reduce((a, x) => Math.max(a, x.level === "red" ? 2 : 1), 0);
+    list.sort((a, b) => rank(b.id) - rank(a.id) || a.code.localeCompare(b.code));
     return c.json({ stores: list.map((s) => ({ ...s, alerts: alerts.get(s.id) ?? [] })), month });
   });
 

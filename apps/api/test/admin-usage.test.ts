@@ -59,6 +59,17 @@ describe("用量總覽（月）", () => {
   });
 });
 
+describe("門店列表直接開啟（沒先開用量頁）", () => {
+  it("列表會補算日彙總：本月估算成本與昨日的夜間警示都出現", async () => {
+    const s = await seedStore();
+    await hourly(s.storeId, "2027-01-18", { tickets: 30, api_requests: 200 });
+    await hourly(s.storeId, "2027-01-19", { do_night_wakes: 15 }, 19);
+    const list = await j(await req(`/api/admin/stores?q=${s.code}`));
+    expect(list.stores[0].monthEstUsd).toBeGreaterThan(0);
+    expect(list.stores[0].alerts.map((a: any) => a.kind)).toContain("night_wake");
+  });
+});
+
 describe("帳單輸入與分攤", () => {
   it("輸入帳單 → 總覽顯示實際金額、每店分攤；寫稽核；清空項目（null）即刪除；負數 → 422", async () => {
     const { a, b } = await twoStores();

@@ -6,7 +6,7 @@ import type { Browser, BrowserContextOptions, Page } from "@playwright/test";
 
 export const ROOT = resolve(import.meta.dirname, "..");
 export const SHOTS = resolve(ROOT, "test-results/visual");
-export const URLS = { display: "http://localhost:6174", customer: "http://localhost:6175", staff: "http://localhost:6173", store: "http://localhost:6172", api: "http://127.0.0.1:8788" };
+export const URLS = { display: "http://localhost:6174", customer: "http://localhost:6175", staff: "http://localhost:6173", store: "http://localhost:6172", admin: "http://localhost:6171", api: "http://127.0.0.1:8788" };
 
 export interface SeedStore {
   id: string;
@@ -109,6 +109,12 @@ export function qrTokenFor(storeId: string, w: number): string {
     }
   }
   return out.slice(0, 10);
+}
+
+/** 畫面上不得出現的格式錯誤字樣（數字格式化失敗）。 */
+export async function textIssues(page: Page): Promise<string[]> {
+  const t = await page.evaluate(() => document.body.innerText);
+  return ["NaN", "undefined", "Infinity", "[object Object]", "null"].filter((w) => new RegExp(`(^|[^A-Za-z])${w.replace(/[[\]]/g, "\\$&")}([^A-Za-z]|$)`).test(t)).map((w) => `畫面出現「${w}」`);
 }
 
 /** 版面量測：無水平捲動；所有可點元素 ≥ 44×44（05-apps §0）。回傳違規清單（空＝通過）。 */

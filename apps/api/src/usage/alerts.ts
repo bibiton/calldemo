@@ -55,7 +55,7 @@ export async function storeAlerts(env: Env, storeIds: string[], now: number): Pr
       const last = rows.find((r) => r.date === y);
       if (!last) continue;
       if (last.do_wakes_offhours_max > ALERT_RULES.nightWakesPerHour)
-        add(id, { kind: "night_wake", level: "red", text: `夜間 DO 未休眠：非營業時間最多 ${last.do_wakes_offhours_max} 次喚醒／小時`, value: last.do_wakes_offhours });
+        add(id, { kind: "night_wake", level: "red", text: `夜間 DO 未休眠（每小時最多喚醒 ${last.do_wakes_offhours_max} 次）`, value: last.do_wakes_offhours });
       const prev = rows.filter((r) => r.date < y);
       const avg = prev.length ? prev.reduce((a, r) => a + r.api_requests, 0) / prev.length : 0;
       if (prev.length && last.api_requests > ALERT_RULES.spikeMin && last.api_requests > avg * ALERT_RULES.spikeFactor)

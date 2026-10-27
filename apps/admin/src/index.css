@@ -8,4 +8,5 @@
 }
 
 html, body, #root { height: 100%; }
-body { margin: 0; font-family: var(--font-sans); -webkit-tap-highlight-color: transparent; }
+body { margin: 0; font-family: var(--font-sans); -webkit-tap-highlight-color: transparent; background: #f4f6fa; color: #0f172a; }
+:focus-visible { outline: 3px solid #f5b301; outline-offset: 2px; }
