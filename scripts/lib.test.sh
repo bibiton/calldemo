@@ -41,8 +41,8 @@ check ok   "AE dataset"           'assert_call_dataset call_usage_production'
 check fail "AE dataset 舊名"       'assert_call_dataset qcs_usage'
 
 # 3. 名稱對應
-check ok   "顧客頁 → call-q"       '[[ "$(app_host customer)" == call-q.jjoy.ai && "$(pages_project customer)" == call-q-production ]]'
-check ok   "總後台 Pages 專案"     '[[ "$(pages_project admin)" == call-admin-production ]]'
+check ok   "顧客頁 → call-q"       '[[ "$(app_host customer)" == call-q.jjoy.ai && "$(front_worker customer)" == call-q-production ]]'
+check ok   "總後台 Pages 專案"     '[[ "$(front_worker admin)" == call-admin-production ]]'
 
 # 4. wrangler.toml 檢查（[env.local] 的 qcs-*-local 不在檢查範圍）
 TOML="$HERE/../apps/api/wrangler.toml"
@@ -52,7 +52,11 @@ bad 's/bucket_name = "call-media-production"/bucket_name = "noah-media"/'; check
 bad 's/name = "call-api-production"/name = "qcs-api"/';                   check fail "production Worker 非 call-" "check_toml_names '$TMP/bad.toml'"
 bad 's#call-admin.jjoy.ai/api/\*#noah.jjoy.ai/api/*#';                    check fail "route 指到別的產品"       "check_toml_names '$TMP/bad.toml'"
 bad 's/dead_letter_queue = "call-push-dlq-production"/dead_letter_queue = "pos-dlq"/'; check fail "DLQ 非 call-" "check_toml_names '$TMP/bad.toml'"
-bad 's/^dataset = "call_usage_production"/dataset = "qcs_usage"/';        check fail "AE dataset 非 call_"       "check_toml_names '$TMP/bad.toml'"
+# AE binding 目前在 toml 內為註解（帳號未啟用 AE）；取消註解後的樣子：附加一段 dataset 非 call_ 的 binding
+{ cat "$TOML"; printf '[[env.production.analytics_engine_datasets]]\nbinding = "USAGE"\ndataset = "qcs_usage"\n'; } >"$TMP/bad.toml"
+check fail "AE dataset 非 call_"       "check_toml_names '$TMP/bad.toml'"
+{ cat "$TOML"; printf '[[env.production.analytics_engine_datasets]]\nbinding = "USAGE"\ndataset = "call_usage_production"\n'; } >"$TMP/ok.toml"
+check ok   "AE dataset call_（取消註解後）" "check_toml_names '$TMP/ok.toml'"
 bad 's/^\[env.production\]/[env.prod]/';                                  check fail "找不到 production 區段"    "check_toml_names '$TMP/bad.toml'"
 
 # 5. cf.env 載入（假檔、假值；絕不讀真正的檔案——HOME 指到暫存目錄）

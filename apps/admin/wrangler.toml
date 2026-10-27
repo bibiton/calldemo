@@ -1,0 +1,15 @@
+# 前端靜態站：assets-only Worker（ADR-050；原規劃 Pages，共用帳號的 Pages 專案數已達上限）。
+# 只部署 [env.production]（scripts/deploy.sh 先 vite build 再 wrangler deploy --env production）；本機開發仍用 Vite。
+# 靜態資源請求免費且不限量；_headers（public/_headers）照樣生效；找不到的路徑回 index.html（SPA）。
+name = "call-admin"
+compatibility_date = "2026-10-01"
+
+[assets]
+directory = "./dist"
+not_found_handling = "single-page-application"
+
+[env.production]
+name = "call-admin-production"
+workers_dev = false
+preview_urls = false
+routes = [{ pattern = "call-admin.jjoy.ai", custom_domain = true }]

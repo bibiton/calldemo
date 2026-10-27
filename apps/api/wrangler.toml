@@ -80,12 +80,12 @@ vars = { ENV = "production", APP_ORIGINS = "https://call-admin.jjoy.ai,https://c
 [[env.production.d1_databases]]
 binding = "DB"
 database_name = "call-db-production"
-database_id = "__D1_ID_PRODUCTION__"
+database_id = "a90ed173-5a15-460c-be51-46736ed7c70f"
 migrations_dir = "migrations"
 
 [[env.production.kv_namespaces]]
 binding = "LICENSE"
-id = "__KV_ID_PRODUCTION__"
+id = "3f21ed3f198d4185add9cd9f5ad12722"
 
 [[env.production.r2_buckets]]
 binding = "MEDIA"
@@ -115,10 +115,13 @@ max_batch_timeout = 2
 max_retries = 3
 dead_letter_queue = "call-push-dlq-production"
 
-# Analytics Engine dataset 名稱用底線；首次寫入時自動建立，bootstrap 不需建立
-[[env.production.analytics_engine_datasets]]
-binding = "USAGE"
-dataset = "call_usage_production"
+# Analytics Engine dataset 名稱用底線；首次寫入時自動建立，bootstrap 不需建立。
+# 2026-10-27 首次部署：共用帳號尚未啟用 Analytics Engine（wrangler deploy 錯誤 10089 "You need to enable Analytics Engine"）。
+# 啟用是帳號層級設定（不屬於 call- 資源），由業主在 dashboard → Workers & Pages → Analytics Engine 啟用後，取消下面 3 行的註解再部署。
+# 未綁定時 Worker 與 DO 會略過 AE 寫入（app.ts／usage/ae.ts／store-queue.ts 皆判斷 env.USAGE），叫號功能不受影響；DO 計數仍經 Queue 寫 D1。
+# [[env.production.analytics_engine_datasets]]
+# binding = "USAGE"
+# dataset = "call_usage_production"
 
 [env.production.triggers]
 crons = ["5 * * * *", "30 19 * * *"]

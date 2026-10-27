@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 草稿・未對 Cloudflare 實測 —— 共用函式（ADR-049：只有 production 一個環境、jjoy.ai、call- 前綴）
+# 共用函式（ADR-049：只有 production 一個環境、jjoy.ai、call- 前綴）
 #
 # 憑證：只讀 ~/.config/queue-call-system/cf.env（CLOUDFLARE_API_TOKEN、CLOUDFLARE_ACCOUNT_ID、CF_ZONE_ID、ACCESS_ALLOWED_EMAILS）。
 #   - 不使用、不讀取、不覆寫全域 `wrangler login`：wrangler 一律經 cfw() 執行，HOME／XDG_CONFIG_HOME 指到本次執行的暫存目錄，
@@ -48,11 +48,11 @@ assert_call_dataset() {  # Analytics Engine dataset 只能用底線
 
 app_sub()       { if [[ "$1" == customer ]]; then echo "call-q"; else echo "call-$1"; fi; }
 app_host()      { echo "$(app_sub "$1").$DOMAIN"; }
-pages_project() { echo "$(app_sub "$1")-$ENV_NAME"; }
+front_worker()  { echo "$(app_sub "$1")-$ENV_NAME"; }   # 前端 assets-only Worker（ADR-050，原 Pages 專案）
 
 # 檢查 wrangler.toml 的 [env.production*] 區段：Worker／D1／R2／Queue 名稱、route 網域、AE dataset 都必須屬於本專案
-check_toml_names() {  # $1=wrangler.toml 路徑
-  local toml="$1" kind val n=0 worker=""
+check_toml_names() {  # $1=wrangler.toml 路徑 $2=至少要讀到的名稱數（API 8；前端 2）
+  local toml="$1" min="${2:-8}" kind val n=0 worker=""
   [[ -f "$toml" ]] || die "找不到 $toml"
   while IFS=$'\t' read -r kind val; do
     case "$kind" in
@@ -75,7 +75,7 @@ check_toml_names() {  # $1=wrangler.toml 路徑
     /zone_name[[:space:]]*=/ { s = $0; sub(/.*zone_name[[:space:]]*=[[:space:]]*/, "", s); if (q(s) != "jjoy.ai") print "Z\t" q(s) }
   ' "$toml")
   [[ -n "$worker" ]] || die "wrangler.toml 找不到 [env.production] 的 Worker 名稱"
-  (( n >= 8 )) || die "wrangler.toml 的 [env.production] 區段讀不到預期的資源名稱（只讀到 $n 個）"
+  (( n >= min )) || die "wrangler.toml 的 [env.production] 區段讀不到預期的資源名稱（只讀到 $n 個）"
 }
 
 # ---------- 憑證 ----------
@@ -160,6 +160,18 @@ cf_api() {  # $1=method $2=path $3=JSON body（選填）
   printf 'header = "Authorization: Bearer %s"\n' "$CLOUDFLARE_API_TOKEN" | curl --config - "${args[@]}" || true
 }
 api_ok() { jq -e '.success == true' >/dev/null 2>&1 <<<"$1"; }
+
+# 執行前列出「會建立或修改」的全部資源與網域，逐一過安全閘（任何一個不是 call- 就整個中止，什麼都還沒動）
+print_plan() {  # $1=動作說明
+  local n app
+  info "${1:-本次}會建立或修改的 Cloudflare 資源（全部 call- 前綴；不刪除任何資源，不碰其他產品）："
+  for n in "$WORKER_NAME" "$D1_NAME" "$KV_NAME" "$R2_NAME" "${QUEUES[@]}"; do assert_call_name "$n"; printf '    - %s\n' "$n"; done
+  for app in "${APPS[@]}"; do n="$(front_worker "$app")"; assert_call_name "$n"; printf '    - 前端 Worker %s → https://%s\n' "$n" "$(app_host "$app")"; assert_call_host "$(app_host "$app")"; done
+  assert_call_dataset "$AE_DATASET"; printf '    - Analytics Engine %s\n' "$AE_DATASET"
+  assert_call_name "$ACCESS_APP_NAME"; printf '    - Access 應用 %s（%s）\n' "$ACCESS_APP_NAME" "$ADMIN_HOST"
+  printf '    - 網域 %s（Worker）、%s/api/*（Worker route）、%s（R2）\n' "$API_HOST" "$ADMIN_HOST" "$MEDIA_HOST"
+  ok "資源清單通過 call- 安全閘"
+}
 
 # Worker secret：覆寫（只用於可安全重設的值，例如 email 名單、AUD）。金鑰類用 bootstrap 的 put_secret（不覆蓋）。
 sync_secret() {  # $1=名稱 $2=值（空值略過）

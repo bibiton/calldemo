@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 草稿・未對 Cloudflare 實測 —— 部署後在正式網址驗證（ADR-049：沒有 staging，部署後直接驗 production）
+# 部署後在正式網址驗證（ADR-049：沒有 staging，部署後直接驗 production）
 # 用法：bash scripts/smoke.sh [production]
 # 只發 HTTPS GET，不需要 Cloudflare token，所以不讀 cf.env。
 source "$(dirname "$0")/lib.sh"
@@ -12,13 +12,8 @@ body="$(curl -fsS "$API/health")" || die "health 失敗"
 [[ "$(jq -r .version <<<"$body")" == "$SHA" ]] || die "health 版本不符：$body"
 ok "health $SHA"
 
-# b. WebSocket：smoke 門店送 ping 須收到 pong 與 hello（smoke-ws.mjs 尚未撰寫，M6）
-if [[ -f "$ROOT/scripts/smoke-ws.mjs" ]]; then
-  node "$ROOT/scripts/smoke-ws.mjs" "$API" || die "WebSocket smoke 失敗"
-  ok "WebSocket ping/pong"
-else
-  info "scripts/smoke-ws.mjs 尚未撰寫：WebSocket 請在實機驗證時確認（docs/10 C 段）"
-fi
+# b. WebSocket：smoke 門店店長連線須收到 hello，送 ping 須收到 pong（帳密：~/.config/queue-call-system/smoke.json，bootstrap 建立）
+node "$ROOT/scripts/smoke-ws.mjs" "$API" || die "WebSocket smoke 失敗"
 
 # c. 前端首頁
 for app in "${APPS[@]}"; do
