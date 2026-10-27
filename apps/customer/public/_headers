@@ -1,0 +1,6 @@
+# Cloudflare Pages 安全標頭（M5 5.3）：不允許被嵌入 iframe、不猜 MIME、跨站只送來源網域
+/*
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  X-Frame-Options: DENY
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=()

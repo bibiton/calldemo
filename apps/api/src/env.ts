@@ -8,6 +8,8 @@ export interface Env {
   Q_HISTORY: Queue<HistoryMessage>;
   Q_PUSH: Queue<PushMessage>;
   ENV: "local" | "staging" | "production";
+  /** 部署版本（git short sha，deploy.sh 帶入）；本機沒有 */
+  VERSION?: string;
   DEV_BYPASS_ACCESS?: string;
   /** Cloudflare Access（總後台，08 §7）：Application AUD tag 與 team domain（xxx.cloudflareaccess.com） */
   ACCESS_AUD?: string;

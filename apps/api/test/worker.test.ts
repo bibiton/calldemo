@@ -154,7 +154,7 @@ describe("T3 門店停用", () => {
     const app = createApp({ now: () => Date.now() });
     const ws = await openViaWorker(app, s.storeId, "display", s.displayToken);
     await waitFor(ws, "snapshot");
-    const sus = await app.request(`/api/admin/stores/${s.storeId}/suspend`, { method: "POST" }, env);
+    const sus = await app.request(`/api/admin/stores/${s.storeId}/suspend`, { method: "POST", headers: { "x-qcs-admin": "1" } }, env);
     expect(sus.status).toBe(200);
     expect((await waitFor(ws, "store.suspended")).data.reason).toBe("suspended");
     expect(await ws.closed).toBe(4003);
@@ -165,7 +165,7 @@ describe("T3 門店停用", () => {
     const wsRes = await app.request(`/ws/store/${s.storeId}?role=display`, { headers: { Upgrade: "websocket", "Sec-WebSocket-Protocol": `qcs.v1, auth.${s.displayToken}` } }, env);
     expect(wsRes.status).toBe(403);
     // 恢復
-    expect((await app.request(`/api/admin/stores/${s.storeId}/resume`, { method: "POST" }, env)).status).toBe(200);
+    expect((await app.request(`/api/admin/stores/${s.storeId}/resume`, { method: "POST", headers: { "x-qcs-admin": "1" } }, env)).status).toBe(200);
     expect((await app.request(`/api/s/${s.code}/session?${await qrParams(s.storeId, w)}`, {}, env)).status).toBe(200);
   });
   it("非 local 環境沒有 Access 驗證時 /api/admin 一律 401", async () => {

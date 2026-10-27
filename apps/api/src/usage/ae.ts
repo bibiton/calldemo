@@ -88,6 +88,10 @@ export async function importAeDay(env: Env, date: string, fetchFn: AeFetch): Pro
   const wakeMap = new Map(wakes.map((r) => [key(r), Number(r.req) || 0]));
   const keys = new Map<string, { s: string; h: number }>();
   for (const r of [...all, ...wakes]) if (r.store && Number.isFinite(aeTime(r.hour))) keys.set(key(r), { s: String(r.store).slice(0, 96), h: aeTime(r.hour) });
+  // 只收已知門店與 _platform（安全審查 L-5：AE index 不直接信任）
+  const known = new Set((await env.DB.prepare("SELECT id FROM stores").all<{ id: string }>()).results.map((x) => x.id));
+  known.add(PLATFORM);
+  for (const k of [...keys.keys()]) if (!known.has(keys.get(k)!.s)) keys.delete(k);
   const allMap = new Map(all.map((r) => [key(r), r]));
   const rows = [...keys].map(([k, { s, h }]) => {
     const a = allMap.get(k);

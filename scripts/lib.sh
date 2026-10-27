@@ -60,6 +60,7 @@ check_toml_names() {  # $1=wrangler.toml 路徑
       N) assert_call_name "$val" ;;
       H) assert_call_host "$val" ;;
       D) assert_call_dataset "$val" ;;
+      Z) die "wrangler.toml 的 zone_name 必須是 jjoy.ai（讀到 $val）" ;;
     esac
     n=$((n + 1))
   done < <(awk '
@@ -70,6 +71,8 @@ check_toml_names() {  # $1=wrangler.toml 路徑
     /^[[:space:]]*(database_name|bucket_name|queue|dead_letter_queue)[[:space:]]*=/ { print "N\t" q($0) }
     /^[[:space:]]*dataset[[:space:]]*=/ { print "D\t" q($0) }
     /pattern[[:space:]]*=/ { s = $0; sub(/.*pattern[[:space:]]*=[[:space:]]*/, "", s); p = q(s); sub(/\/.*/, "", p); print "H\t" p }
+    /^[[:space:]]*vars[[:space:]]*=/ { s = $0; while (match(s, /https:\/\/[^",\/ ]+/)) { print "H\t" substr(s, RSTART + 8, RLENGTH - 8); s = substr(s, RSTART + RLENGTH) } }
+    /zone_name[[:space:]]*=/ { s = $0; sub(/.*zone_name[[:space:]]*=[[:space:]]*/, "", s); if (q(s) != "jjoy.ai") print "Z\t" q(s) }
   ' "$toml")
   [[ -n "$worker" ]] || die "wrangler.toml 找不到 [env.production] 的 Worker 名稱"
   (( n >= 8 )) || die "wrangler.toml 的 [env.production] 區段讀不到預期的資源名稱（只讀到 $n 個）"

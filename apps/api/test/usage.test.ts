@@ -200,17 +200,19 @@ function fakeAe(rows: { all?: any[]; err?: any[]; wake?: any[] }) {
 const aeEnv = () => envWith({ CF_ACCOUNT_ID: "acc123", AE_API_TOKEN: "ae-token", AE_DATASET: "qcs_usage" });
 
 describe("Analytics Engine SQL 匯入（每日 Cron）", () => {
-  it("依店依小時寫入 API 欄位；以 _sample_interval 加權；排除 DO 點；重跑不重複累加", async () => {
-    const sid = uniq("ae");
+  it("依店依小時寫入 API 欄位；以 _sample_interval 加權；排除 DO 點；重跑不重複累加；不認得的 index 略過", async () => {
+    const sid = (await seedStore()).storeId;
     const date = "2026-10-23";
     const ae = fakeAe({
       all: [
         { store: sid, hour: "2026-10-23 05:00:00", req: 120, wall: 2400 },
         { store: sid, hour: "2026-10-23 06:00:00", req: 30, wall: 300 },
+        { store: "not-a-store", hour: "2026-10-23 06:00:00", req: 99, wall: 1 },
       ],
       err: [{ store: sid, hour: "2026-10-23 05:00:00", req: 2 }],
     });
     for (let i = 0; i < 2; i++) expect(await importAeDay(aeEnv(), date, ae.fetchFn)).toEqual({ rows: 2 });
+    expect(await env.DB.prepare("SELECT 1 FROM usage_hourly WHERE store_id='not-a-store'").first()).toBeNull();
     expect(ae.sqls[0]).toContain("_sample_interval");
     expect(ae.sqls[0]).toContain("toDateTime('2026-10-23 00:00:00')");
     expect(ae.sqls[0]).toContain("toDateTime('2026-10-24 00:00:00')");

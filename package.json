@@ -12,8 +12,9 @@
     "build": "pnpm -r --filter \"./apps/*\" build",
     "typecheck": "pnpm -r typecheck",
     "check:hibernation": "node scripts/check-hibernation.mjs",
-    "lint": "pnpm check:hibernation && pnpm typecheck",
-    "test": "pnpm check:hibernation && node --test scripts/check-hibernation.test.mjs && bash scripts/lib.test.sh && pnpm -r test",
+    "check:secrets": "node scripts/check-secrets.mjs",
+    "lint": "pnpm check:hibernation && pnpm check:secrets && pnpm typecheck",
+    "test": "pnpm check:hibernation && pnpm check:secrets && node --test scripts/check-hibernation.test.mjs scripts/check-secrets.test.mjs && bash scripts/lib.test.sh && pnpm -r test",
     "e2e": "playwright test -c e2e/playwright.config.ts"
   },
   "devDependencies": {

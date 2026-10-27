@@ -24,6 +24,8 @@ const STAFF_TTL_S = 12 * 3600;
 const XFER_TTL_MS = 10 * 60_000;
 const LOCK_AFTER = 5;
 const LOCK_MS = 15 * 60_000;
+const PIN_FAILS_PER_MIN = 20;
+const PIN_PAUSE_MIN = 5;
 
 
 export interface AppDeps {
@@ -72,7 +74,8 @@ export function createApp(deps: AppDeps = {}) {
     }),
   );
 
-  app.get("/health", (c) => c.json({ ok: true, version: VERSION, env: c.env.ENV }));
+  // 部署時 deploy.sh 以 --var VERSION:<git sha> 帶入；smoke.sh 比對版本確認新版已生效
+  app.get("/health", (c) => c.json({ ok: true, version: c.env.VERSION || VERSION, env: c.env.ENV }));
   app.get("/media/*", serveLocalMedia);
 
   /** 門店開啟推播且已設定 VAPID 才給公鑰；前端拿不到就不請求通知權限（07 §2）。 */
@@ -248,12 +251,26 @@ export function createApp(deps: AppDeps = {}) {
     const body = await c.req.json().catch(() => null);
     const pin = String(body?.pin ?? "");
     if (!/^\d{6}$/.test(pin)) return err(c, 422, "PIN_FORMAT");
+    // 每店 PIN 失敗限流（06 §1，ADR-046）：任一分鐘失敗 > 20 → 該店 PIN 登入暫停 5 分鐘（含正確 PIN）
+    const minute = Math.floor(now() / 60_000);
+    const paused = await c.env.DB.prepare("SELECT 1 FROM pin_failures WHERE store_id=? AND minute > ? AND n > ?")
+      .bind(d.store_id, minute - PIN_PAUSE_MIN, PIN_FAILS_PER_MIN)
+      .first();
+    if (paused) return err(c, 429, "PIN_PAUSED", { retryAfterSec: PIN_PAUSE_MIN * 60 });
     const u = await c.env.DB.prepare(
       "SELECT id, display_name, pin_hash, status, failed_attempts, locked_until, token_version FROM users WHERE id=? AND store_id=? AND role='staff'",
     ).bind(String(body?.userId ?? ""), d.store_id).first<any>();
     if (!u || u.status !== "active") return err(c, 401, "LOGIN_FAILED");
     if (u.locked_until && u.locked_until > now()) return err(c, 423, "LOCKED");
     if (!(await verifySecret(pin, u.pin_hash))) {
+      const pf = await c.env.DB.prepare(
+        "INSERT INTO pin_failures(store_id,minute,n) VALUES(?,?,1) ON CONFLICT(store_id,minute) DO UPDATE SET n=n+1 RETURNING n",
+      ).bind(d.store_id, minute).first<{ n: number }>();
+      if (pf?.n === PIN_FAILS_PER_MIN + 1) {
+        await c.env.DB.prepare("INSERT INTO audit_logs(id,at,actor_type,actor_id,store_id,action,target) VALUES(?,?,?,?,?,?,?)")
+          .bind(ulid(now()), now(), "device", d.sub, d.store_id, "store.pin_paused", d.store_id)
+          .run();
+      }
       const fails = u.failed_attempts + 1;
       const lock = fails >= LOCK_AFTER;
       await c.env.DB.prepare("UPDATE users SET failed_attempts=?, locked_until=?, updated_at=? WHERE id=?")
@@ -360,6 +377,13 @@ export function createApp(deps: AppDeps = {}) {
   app.use("/api/admin/*", async (c, next) => {
     const who = await platformAdmin(c.env, c.req.raw.headers, now(), deps.accessFetch ?? defaultJwksFetcher);
     if (!who) return err(c, 401, "ACCESS_REQUIRED");
+    // CSRF（安全審查 M-1）：寫入請求必須帶自訂標頭（跨站表單／簡單請求帶不了，跨來源則觸發 preflight 被 CORS 擋），
+    // 有 Origin 時必須是同源或白名單內的前端
+    if (!["GET", "HEAD", "OPTIONS"].includes(c.req.method)) {
+      const origin = c.req.header("origin");
+      const allowed = origin === undefined || origin === new URL(c.req.url).origin || (c.env.APP_ORIGINS ?? "").split(",").includes(origin);
+      if (!c.req.header("x-qcs-admin") || !allowed) return err(c, 403, "CSRF");
+    }
     c.set("platform", who);
     return next();
   });

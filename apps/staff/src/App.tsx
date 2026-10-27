@@ -111,7 +111,13 @@ function Login({ info, device, onLogin }: { info: DeviceInfo; device: string; on
     try {
       onLogin(await api<Session>("/api/staff/login", { method: "POST", token: device, body: JSON.stringify({ userId, pin: p }) }));
     } catch (e) {
-      setErr(e instanceof ApiError && e.status === 423 ? "嘗試次數過多，請 15 分鐘後再試。" : "PIN 錯誤，請再試一次。");
+      setErr(
+        e instanceof ApiError && e.status === 423
+          ? "嘗試次數過多，請 15 分鐘後再試。"
+          : e instanceof ApiError && e.status === 429
+            ? "本店短時間內錯誤太多次，PIN 登入暫停 5 分鐘。"
+            : "PIN 錯誤，請再試一次。",
+      );
       setPin("");
       setBusy(false);
     }

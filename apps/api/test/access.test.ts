@@ -161,7 +161,7 @@ describe("4.1 Access JWT 驗證（RS256＋JWKS）", () => {
     const s = await seedStore();
     const k = await rsaKey("k1");
     const t = setup([k]);
-    const res = await t.req(`/api/admin/stores/${s.storeId}/suspend`, { method: "POST" }, accessEnv());
+    const res = await t.req(`/api/admin/stores/${s.storeId}/suspend`, { method: "POST", headers: { "x-qcs-admin": "1" } }, accessEnv());
     expect(res.status).toBe(401);
     const row = await env.DB.prepare("SELECT status FROM stores WHERE id=?").bind(s.storeId).first<any>();
     expect(row.status).toBe("active");
@@ -173,11 +173,35 @@ describe("4.1 Access JWT 驗證（RS256＋JWKS）", () => {
     const t = setup([k]);
     const res = await t.req(
       `/api/admin/stores/${s.storeId}/suspend`,
-      { method: "POST", headers: { "Cf-Access-Jwt-Assertion": await accessJwt(k, good({ email: "boss@example.com" })) } },
+      { method: "POST", headers: { "Cf-Access-Jwt-Assertion": await accessJwt(k, good({ email: "boss@example.com" })), "x-qcs-admin": "1" } },
       accessEnv(),
     );
     expect(res.status).toBe(200);
     const a = await env.DB.prepare("SELECT actor_type, actor_id FROM audit_logs WHERE store_id=? AND action='store.suspend'").bind(s.storeId).first<any>();
     expect(a).toMatchObject({ actor_type: "platform_admin", actor_id: "boss@example.com" });
+  });
+});
+
+describe("安全審查修正：CSRF、名單為空", () => {
+  it("寫入請求沒有 x-qcs-admin 標頭（跨站表單／簡單請求）→ 403 CSRF；跨來源 Origin → 403；同源可", async () => {
+    const s = await seedStore();
+    const app = createApp({ now: () => NOW });
+    const noHdr = await app.request(`/api/admin/stores/${s.storeId}/suspend`, { method: "POST", headers: { "content-type": "text/plain" }, body: "x" }, env);
+    expect(noHdr.status).toBe(403);
+    expect(await noHdr.json()).toMatchObject({ code: "CSRF" });
+    const evil = await app.request(`/api/admin/stores/${s.storeId}/suspend`, { method: "POST", headers: { "x-qcs-admin": "1", origin: "https://evil.jjoy.ai" } }, env);
+    expect(evil.status).toBe(403);
+    const ok = await app.request(`http://localhost/api/admin/stores/${s.storeId}/resume`, { method: "POST", headers: { "x-qcs-admin": "1", origin: "http://localhost" } }, env);
+    expect(ok.status).toBe(200);
+    expect((await app.request("/api/admin/me", {}, env)).status).toBe(200); // GET 不需要
+  });
+
+  it("production 沒設定 ACCESS_ALLOWED_EMAILS → 拒絕（不只靠 Access policy）", async () => {
+    const k = await rsaKey("k1");
+    const t = setup([k]);
+    const r = await t.req("/api/admin/me", { headers: { "Cf-Access-Jwt-Assertion": await accessJwt(k, good()) } }, accessEnv({ ENV: "production", ACCESS_ALLOWED_EMAILS: "" }));
+    expect(r.status).toBe(401);
+    const r2 = await t.req("/api/admin/me", { headers: { "Cf-Access-Jwt-Assertion": await accessJwt(k, good()) } }, accessEnv({ ENV: "production", ACCESS_ALLOWED_EMAILS: "ops@example.com" }));
+    expect(r2.status).toBe(200);
   });
 });

@@ -15,7 +15,8 @@ export const onUnauthorized = (fn: () => void) => {
 };
 
 export async function api<T = any>(path: string, init: RequestInit & { json?: unknown } = {}): Promise<T> {
-  const headers: Record<string, string> = { ...(init.headers as Record<string, string>) };
+  // x-qcs-admin：伺服器端的 CSRF 檢查（跨站表單送不出自訂標頭）
+  const headers: Record<string, string> = { "x-qcs-admin": "1", ...(init.headers as Record<string, string>) };
   if (init.json !== undefined) headers["content-type"] = "application/json";
   let res: Response;
   try {

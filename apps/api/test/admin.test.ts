@@ -15,7 +15,7 @@ const NOW = Date.now();
 const app = createApp({ now: () => NOW });
 const req = (path: string, init: RequestInit = {}) => app.request(path, init, env);
 const send = (method: string, path: string, body?: unknown) =>
-  req(path, { method, headers: { "content-type": "application/json" }, body: body === undefined ? undefined : JSON.stringify(body) });
+  req(path, { method, headers: { "content-type": "application/json", "x-qcs-admin": "1" }, body: body === undefined ? undefined : JSON.stringify(body) });
 const j = async (r: Response) => (await r.json()) as any;
 let n = 0;
 const code = () => `T${(Date.now() % 100000).toString(36).toUpperCase()}${(n++).toString(36).toUpperCase()}`.slice(0, 8);
@@ -298,6 +298,28 @@ describe("面板在線與「無法出聲」（ADR-027、ADR-045）", () => {
     await env.DB.prepare("UPDATE devices SET audio_status_at=? WHERE id=?").bind(NOW - 6 * 60_000, `${s.storeId}_d1`).run();
     st = (await j(await req(`/api/admin/stores?q=${s.code}`))).stores[0];
     expect(st.alerts).toEqual(expect.arrayContaining([expect.objectContaining({ kind: "panel_muted", level: "red" })]));
+  });
+});
+
+describe("安全審查修正：封存門店、搜尋萬用字元、密碼回應不快取", () => {
+  it("已刪除（封存）的門店不能新增或啟用店長（409）", async () => {
+    const s = await seedStore();
+    expect((await send("DELETE", `/api/admin/stores/${s.storeId}`, { confirmCode: s.code })).status).toBe(200);
+    expect((await send("POST", `/api/admin/stores/${s.storeId}/admins`, { email: `z-${s.storeId}@example.com`, displayName: "x" })).status).toBe(409);
+    expect((await send("POST", `/api/admin/stores/${s.storeId}/admins/${s.adminId}/enable`)).status).toBe(409);
+    expect((await send("POST", `/api/admin/stores/${s.storeId}/admins/${s.adminId}/reset-password`)).status).toBe(409);
+  });
+  it("搜尋的 % 與 _ 當一般字元（不當萬用字元）", async () => {
+    await seedStore();
+    expect((await j(await req("/api/admin/stores?q=%25"))).stores).toHaveLength(0);
+    expect((await j(await req("/api/admin/stores?q=_"))).stores).toHaveLength(0);
+  });
+  it("回傳密碼的回應帶 Cache-Control: no-store", async () => {
+    const { res } = await createStore();
+    expect(res.headers.get("cache-control")).toBe("no-store");
+    const s = await seedStore();
+    const r = await send("POST", `/api/admin/stores/${s.storeId}/admins/${s.adminId}/reset-password`);
+    expect(r.headers.get("cache-control")).toBe("no-store");
   });
 });
 

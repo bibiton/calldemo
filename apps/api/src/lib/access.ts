@@ -106,6 +106,7 @@ export async function verifyAccessJwt(env: Env, token: string | null, now: numbe
   // 雙重保險：Access policy 已限制名單；Worker 再比一次（ACCESS_ALLOWED_EMAILS，逗號分隔；未設定則以 Access policy 為準）
   const allow = (env.ACCESS_ALLOWED_EMAILS ?? "").split(",").map((x) => x.trim().toLowerCase()).filter(Boolean);
   if (allow.length && !allow.includes(email)) return null;
+  if (!allow.length && env.ENV === "production") return null; // 正式環境一定要有名單（安全審查 M-2）
   return { email, mode: "access" };
 }
 

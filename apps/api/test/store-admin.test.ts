@@ -13,6 +13,7 @@ function req(app: App, path: string, init: { method?: string; token?: string; bo
   if (init.body !== undefined) headers["content-type"] = "application/json";
   if (init.token) headers.authorization = `Bearer ${init.token}`;
   if (init.cookie) headers.cookie = init.cookie;
+  if (path.startsWith("/api/admin/")) headers["x-qcs-admin"] = "1"; // 總後台寫入的 CSRF 標頭
   return app.request(path, { method: init.method ?? (init.body !== undefined ? "POST" : "GET"), headers, body: init.body !== undefined ? JSON.stringify(init.body) : undefined }, env);
 }
 

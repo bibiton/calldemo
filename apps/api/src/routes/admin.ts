@@ -150,8 +150,10 @@ export function adminRoutes(deps: Deps & { aeFetch: AeFetch }) {
     const where = [status === "deleted" ? "s.deleted_at IS NOT NULL" : "s.deleted_at IS NULL"];
     const binds: unknown[] = [];
     if (q) {
-      where.push("(s.name LIKE ? OR s.code LIKE ?)");
-      binds.push(`%${q}%`, `%${q.toUpperCase()}%`);
+      // % 與 _ 當一般字元
+      const esc = (x: string) => x.replace(/[\\%_]/g, (m) => "\\" + m);
+      where.push("(s.name LIKE ? ESCAPE '\\' OR s.code LIKE ? ESCAPE '\\')");
+      binds.push(`%${esc(q)}%`, `%${esc(q.toUpperCase())}%`);
     }
     const month = new Date(now()).toISOString().slice(0, 7);
     // 本月成本與警示要用到的日彙總（缺的過去日子補算；已算過的不重算）
@@ -212,6 +214,7 @@ export function adminRoutes(deps: Deps & { aeFetch: AeFetch }) {
     }
     await c.env.LICENSE.put(`storecode:${code}`, id);
     await refreshStore(c.env, id);
+    c.header("cache-control", "no-store");
     return c.json({ store: storeOut(await storeRow(c, id), now()), admin: { id: uid, email, displayName: b.admin.displayName.trim(), initialPassword: password } });
   });
 
@@ -325,6 +328,7 @@ export function adminRoutes(deps: Deps & { aeFetch: AeFetch }) {
     const id = c.req.param("id");
     const s = await storeRow(c, id);
     if (!s) return err(c, 404, "STORE_NOT_FOUND");
+    if (s.deleted_at) return err(c, 409, "STORE_DELETED");
     const b = await c.req.json().catch(() => null);
     if (!isStr(b?.displayName, 1, 20) || typeof b?.email !== "string" || !EMAIL.test(b.email.trim())) return err(c, 422, "INVALID");
     const email = b.email.trim().toLowerCase();
@@ -337,21 +341,26 @@ export function adminRoutes(deps: Deps & { aeFetch: AeFetch }) {
       ),
       audit(c, id, "user.create", uid, { role: "store_admin", email }),
     ]);
+    c.header("cache-control", "no-store");
     return c.json({ admin: { id: uid, email, displayName: b.displayName.trim(), status: "active", initialPassword: password } });
   });
 
   const adminRow = (c: C) =>
-    c.env.DB.prepare("SELECT id, status FROM users WHERE id=? AND store_id=? AND role='store_admin'").bind(c.req.param("uid"), c.req.param("id")).first<any>();
+    c.env.DB.prepare("SELECT u.id, u.status, s.deleted_at FROM users u JOIN stores s ON s.id=u.store_id WHERE u.id=? AND u.store_id=? AND u.role='store_admin'")
+      .bind(c.req.param("uid"), c.req.param("id"))
+      .first<any>();
 
   r.post("/stores/:id/admins/:uid/reset-password", async (c) => {
     const u = await adminRow(c);
     if (!u) return err(c, 404, "NOT_FOUND");
+    if (u.deleted_at) return err(c, 409, "STORE_DELETED");
     const password = newPassword();
     await c.env.DB.batch([
       c.env.DB.prepare("UPDATE users SET password_hash=?, token_version=token_version+1, failed_attempts=0, locked_until=NULL, updated_at=? WHERE id=?").bind(await hashSecret(password), now(), u.id),
       audit(c, c.req.param("id"), "user.reset", u.id),
     ]);
     invalidateUserCache(u.id);
+    c.header("cache-control", "no-store");
     return c.json({ password });
   });
 
@@ -359,6 +368,7 @@ export function adminRoutes(deps: Deps & { aeFetch: AeFetch }) {
     r.post(`/stores/:id/admins/:uid/${path}`, async (c) => {
       const u = await adminRow(c);
       if (!u) return err(c, 404, "NOT_FOUND");
+      if (u.deleted_at && status === "active") return err(c, 409, "STORE_DELETED");
       await c.env.DB.batch([
         c.env.DB.prepare("UPDATE users SET status=?, token_version=token_version+1, updated_at=? WHERE id=?").bind(status, now(), u.id),
         audit(c, c.req.param("id"), action, u.id),

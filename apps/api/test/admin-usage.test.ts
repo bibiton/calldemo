@@ -10,7 +10,7 @@ import { seedStore } from "./fixtures";
 const NOW = Date.UTC(2027, 0, 20, 6); // 2027-01-20
 const app = createApp({ now: () => NOW });
 const req = (path: string, init: RequestInit = {}, e: unknown = env) => app.request(path, init, e as any);
-const put = (path: string, body: unknown) => req(path, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+const put = (path: string, body: unknown) => req(path, { method: "PUT", headers: { "content-type": "application/json", "x-qcs-admin": "1" }, body: JSON.stringify(body) });
 const j = async (r: Response) => (await r.json()) as any;
 
 async function hourly(storeId: string, date: string, o: Record<string, number>, hour = 3) {

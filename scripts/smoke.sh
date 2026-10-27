@@ -35,6 +35,10 @@ ok "5 個前端可連線"
 # d. 總後台同源 API 也在 Access 後面（ADR-047：call-admin.jjoy.ai/api/* → Worker route）
 code="$(curl -s -o /dev/null -w '%{http_code}' "https://$ADMIN_HOST/api/admin/me")"
 [[ "$code" == "302" || "$code" == "401" || "$code" == "403" ]] || die "https://$ADMIN_HOST/api/admin/me 回應 $code（未登入應被擋）"
+# e. 直打 API 網域（前面沒有 Access）的總後台路由：Worker 必須自己驗 Access JWT 而回 401（安全審查 M-3）
+code="$(curl -s -o /dev/null -w '%{http_code}' "$API/api/admin/me")"
+[[ "$code" == "401" ]] || die "$API/api/admin/me 回應 $code（沒有 Access JWT 必須 401）"
+ok "API 網域的總後台路由未授權回 401"
 ok "call-admin 的 /api/* 未登入被擋（$code）"
 
 # e. 媒體網域：CORS 預檢只看標頭，不需要實際檔案（未授權來源不得回 allow-origin）
