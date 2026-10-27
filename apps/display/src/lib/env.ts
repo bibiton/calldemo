@@ -1,5 +1,7 @@
 /** API 位址：本機走 Vite proxy（同源）；部署時以 VITE_API_BASE 指向 https://api.<domain>。 */
 export const API_BASE: string = (import.meta.env.VITE_API_BASE as string | undefined) ?? "";
+/** 門店後台網址（配對 QR 用）：部署時 https://store.<domain>；本機預設 5172 */
+export const STORE_BASE: string = (import.meta.env.VITE_STORE_BASE as string | undefined) ?? `${location.protocol}//${location.hostname}:${location.port === "6174" ? "6172" : "5172"}`;
 
 export function wsUrl(path: string): string {
   if (API_BASE) return API_BASE.replace(/^http/, "ws") + path;

@@ -4,6 +4,7 @@ import { decodeJwt, store } from "./lib/env";
 import { useDisplay } from "./useDisplay";
 import { QrPanel } from "./components/QrPanel";
 import { AdArea } from "./components/AdArea";
+import { PairScreen } from "./Pair";
 
 const TOKEN_KEY = "qcs.display.token";
 
@@ -18,18 +19,27 @@ function readToken(): string | null {
 }
 
 export function App() {
-  const [token] = useState(readToken);
+  const [token, setToken] = useState(readToken);
   const claims = token ? decodeJwt(token) : null;
-  if (!token || !claims?.store_id || claims.role !== "display") return <Unpaired />;
-  return <Board token={token} storeId={claims.store_id} />;
-}
-
-function Unpaired() {
+  if (!token || !claims?.store_id || claims.role !== "display")
+    return (
+      <PairScreen
+        onPaired={(t) => {
+          store.set(TOKEN_KEY, t);
+          setToken(t);
+        }}
+      />
+    );
   return (
-    <main className="flex h-full flex-col items-center justify-center gap-[2vh] bg-brand p-[6vw] text-center text-white">
-      <h1 className="text-[4vh] font-black">此叫號面板尚未配對</h1>
-      <p className="max-w-[80vw] text-[2.2vh] leading-relaxed text-white/80">請店長在門店後台「裝置」頁產生配對碼，完成配對後面板會自動開始顯示叫號。</p>
-    </main>
+    <Board
+      key={token}
+      token={token}
+      storeId={claims.store_id}
+      onRevoked={() => {
+        store.del(TOKEN_KEY);
+        setToken(null);
+      }}
+    />
   );
 }
 
@@ -46,8 +56,8 @@ function counterLabel(t: PublicTicket | null) {
   return t?.counterNo ? `請到 ${t.counterNo} 號櫃台` : "請到櫃台";
 }
 
-function Board({ token, storeId }: { token: string; storeId: string }) {
-  const { state, conn, gateView, incomplete, ads } = useDisplay(token, storeId);
+function Board({ token, storeId, onRevoked }: { token: string; storeId: string; onRevoked: () => void }) {
+  const { state, conn, gateView, incomplete, ads, adsVersion } = useDisplay(token, storeId, onRevoked);
   const now = useClock(state.serverOffset);
   const s = state.store;
   const tz = s?.timezone ?? "Asia/Taipei";
@@ -116,7 +126,7 @@ function Board({ token, storeId }: { token: string; storeId: string }) {
 
       {/* 廣告（不與 QR 區重疊：版面排除，不是疊上去） */}
       <section className="overflow-hidden">
-        <AdArea token={token} ads={ads} />
+        <AdArea token={token} ads={ads} version={adsVersion} />
       </section>
 
       {/* 近期叫號＋等候；右側留給固定 QR */}

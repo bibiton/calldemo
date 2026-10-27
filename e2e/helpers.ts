@@ -6,7 +6,7 @@ import type { Browser, BrowserContextOptions, Page } from "@playwright/test";
 
 export const ROOT = resolve(import.meta.dirname, "..");
 export const SHOTS = resolve(ROOT, "test-results/visual");
-export const URLS = { display: "http://localhost:6174", customer: "http://localhost:6175", staff: "http://localhost:6173", api: "http://127.0.0.1:8788" };
+export const URLS = { display: "http://localhost:6174", customer: "http://localhost:6175", staff: "http://localhost:6173", store: "http://localhost:6172", api: "http://127.0.0.1:8788" };
 
 export interface SeedStore {
   id: string;
@@ -15,6 +15,8 @@ export interface SeedStore {
   displayToken: string;
   staffDeviceToken: string;
   staff: { id: string; name: string; pin: string }[];
+  adminEmail: string;
+  adminPassword: string;
 }
 export function seed(code = "DEMO01"): SeedStore {
   const s = JSON.parse(readFileSync(resolve(ROOT, ".e2e-state/seed-output.json"), "utf8"));

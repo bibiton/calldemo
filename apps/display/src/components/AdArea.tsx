@@ -32,7 +32,7 @@ export function activeAt(it: AdItem, d: Date): boolean {
  * 廣告輪播（ADR-016）。版面固定比例 3:2（1080×720，ADR-028）；素材比例不符時 contain＋模糊底，不裁切。
  * 叫號時由 AdController 靜音＋暫停（T15）。
  */
-export function AdArea({ token, ads }: { token: string; ads: AdController }) {
+export function AdArea({ token, ads, version = 0 }: { token: string; ads: AdController; version?: number }) {
   const [items, setItems] = useState<AdItem[]>([]);
   const [idx, setIdx] = useState(0);
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -41,12 +41,18 @@ export function AdArea({ token, ads }: { token: string; ads: AdController }) {
     let alive = true;
     fetch(`${API_BASE}/api/display/ads/manifest`, { headers: { authorization: `Bearer ${token}` } })
       .then((r) => (r.ok ? r.json() : { items: [] }))
-      .then((m) => alive && setItems((m.items ?? []) as AdItem[]))
-      .catch(() => {});
+      .then((m) => {
+        if (!alive) return;
+        const list = (m.items ?? []) as AdItem[];
+        setItems(list);
+        // 版本更新：通知 Service Worker 刪掉不再使用的素材（05-apps §1）
+        navigator.serviceWorker?.controller?.postMessage({ t: "ads-keep", urls: list.map((x) => new URL(x.url, location.href).href) });
+      })
+      .catch(() => {}); // 斷網：保留目前清單繼續播（快取中的素材照播）
     return () => {
       alive = false;
     };
-  }, [token]);
+  }, [token, version]);
 
   const list = items.filter((it) => activeAt(it, new Date()));
   const cur = list.length ? list[idx % list.length] : null;

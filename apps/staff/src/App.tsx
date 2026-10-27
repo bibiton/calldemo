@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { QcsSocket, ulid, type CounterInfo, type ServiceInfo, type StaffTicket } from "@qcs/shared";
 import { api, ApiError } from "./lib/api";
 import { decodeJwt, store, wsUrl } from "./lib/env";
+import { StaffPair } from "./Pair";
 
 const DEVICE_KEY = "qcs.staff.device";
 const SESSION_KEY = "qcs.staff.session";
@@ -38,9 +39,11 @@ function readSession(): Session | null {
 }
 
 export function App() {
-  const [device] = useState(readDevice);
+  const [device, setDevice] = useState(readDevice);
   const [info, setInfo] = useState<DeviceInfo | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [unbound, setUnbound] = useState<string | null>(null);
+  const [infoN, setInfoN] = useState(0);
   const [session, setSession] = useState<Session | null>(readSession);
   const [counterId, setCounterId] = useState<string | null>(() => store.get(COUNTER_KEY));
 
@@ -48,15 +51,34 @@ export function App() {
     if (!device) return;
     api<DeviceInfo>("/api/staff/device", { token: device })
       .then(setInfo)
-      .catch((e) => setErr(e instanceof ApiError && e.status === 401 ? "此裝置的綁定已失效，請店長重新綁定。" : e instanceof ApiError && e.status === 403 ? "門店目前暫停服務。" : "無法連線，請稍後再試。"));
-  }, [device]);
+      .catch((e) => {
+        if (e instanceof ApiError && e.status === 401) {
+          // 綁定已被店長解除：清掉舊 token，回到配對畫面
+          store.del(DEVICE_KEY);
+          store.del(SESSION_KEY);
+          setUnbound("這支手機的綁定已解除，請重新配對。");
+          setDevice(null);
+        } else setErr(e instanceof ApiError && e.status === 403 ? "門店目前暫停服務。" : "無法連線，請稍後再試。");
+      });
+  }, [device, infoN]);
 
   const logout = () => {
     store.del(SESSION_KEY);
     setSession(null);
   };
 
-  if (!device) return <Centered title="此裝置尚未綁定門店" text="請店長在門店後台「裝置」頁綁定這支手機，完成後重新開啟此頁。" />;
+  if (!device)
+    return (
+      <StaffPair
+        notice={unbound}
+        onPaired={(t) => {
+          store.set(DEVICE_KEY, t);
+          setUnbound(null);
+          setInfo(null);
+          setDevice(t);
+        }}
+      />
+    );
   if (err) return <Centered title="無法使用" text={err} />;
   if (!info) return <Centered title="載入中…" />;
   if (!session || decodeJwt(session.token)?.store_id !== info.store.id)
@@ -64,7 +86,7 @@ export function App() {
   const counter = info.counters.find((c) => c.id === counterId);
   if (!counter)
     return <PickCounter info={info} onPick={(id) => { store.set(COUNTER_KEY, id); setCounterId(id); }} onLogout={logout} />;
-  return <Desk info={info} session={session} counter={counter} onSwitchCounter={() => setCounterId(null)} onLogout={logout} />;
+  return <Desk info={info} session={session} counter={counter} onSwitchCounter={() => setCounterId(null)} onLogout={logout} onSettingsChanged={() => setInfoN((k) => k + 1)} onRevoked={() => setInfoN((k) => k + 1)} />;
 }
 
 function Centered({ title, text }: { title: string; text?: string }) {
@@ -172,7 +194,23 @@ function minutesAgo(ms: number) {
   return Math.max(0, Math.round((Date.now() - ms) / 60_000));
 }
 
-function Desk({ info, session, counter, onSwitchCounter, onLogout }: { info: DeviceInfo; session: Session; counter: CounterInfo; onSwitchCounter: () => void; onLogout: () => void }) {
+function Desk({
+  info,
+  session,
+  counter,
+  onSwitchCounter,
+  onLogout,
+  onSettingsChanged,
+  onRevoked,
+}: {
+  info: DeviceInfo;
+  session: Session;
+  counter: CounterInfo;
+  onSwitchCounter: () => void;
+  onLogout: () => void;
+  onSettingsChanged: () => void;
+  onRevoked: () => void;
+}) {
   const [tickets, setTickets] = useState<Map<string, StaffTicket>>(new Map());
   const [conn, setConn] = useState("connecting");
   const [busy, setBusy] = useState<string | null>(null);
@@ -188,8 +226,15 @@ function Desk({ info, session, counter, onSwitchCounter, onLogout }: { info: Dev
     const s = new QcsSocket({
       url: (lastSeq) => wsUrl(`/ws/store/${info.store.id}?role=staff${lastSeq != null ? `&lastSeq=${lastSeq}` : ""}`),
       protocols: () => ["qcs.v1", `auth.${session.token}`],
-      onStatus: (st) => {
+      onStatus: (st, code) => {
         setConn(st);
+        // 4001＝人員被停用／重設 PIN／手機被解除：回到登入（或配對）畫面
+        if (code === 4001) {
+          s.stop();
+          store.del(SESSION_KEY);
+          onRevoked();
+          onLogout();
+        }
         // 重連後重送未 ack 的指令（同 cmdId，DO 端冪等，不會叫兩次號）
         if (st === "open") for (const p of pending.current.values()) s.send(p.msg);
       },
@@ -206,12 +251,19 @@ function Desk({ info, session, counter, onSwitchCounter, onLogout }: { info: Dev
         if (m.type === "snapshot") {
           const all = [...m.data.staff.waiting, ...m.data.staff.active, ...m.data.staff.skipped] as StaffTicket[];
           setTickets(new Map(all.map((t) => [t.id, t])));
+          if (Array.isArray(m.data.devices)) {
+            const b = m.data.devices.some((d: any) => d.audio === "blocked");
+            setDevAlert(b ? "叫號機目前無法出聲，請到面板前按一下遙控器 OK 或點一下畫面" : null);
+          }
         } else if (m.type?.startsWith("ticket.") && m.data?.id) {
           setTickets((prev) => new Map(prev).set(m.data.id, m.data as StaffTicket));
         } else if (m.type === "device.status") {
           setDevAlert(m.data.audio === "blocked" ? "叫號機目前無法出聲，請到面板前按一下遙控器 OK 或點一下畫面" : null);
         } else if (m.type === "store.closed") {
           s.send({ t: "resync" });
+        } else if (m.type === "settings.changed") {
+          s.send({ t: "resync" });
+          onSettingsChanged(); // 櫃台／服務類別可能變了
         }
       },
     });

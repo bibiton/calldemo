@@ -80,6 +80,8 @@ export interface Snapshot {
   counters: Record<string, PublicTicket | null>;
   recent: PublicTicket[];
   staff?: { waiting: StaffTicket[]; active: StaffTicket[]; skipped: StaffTicket[] };
+  /** staff 版：連線中的面板與音訊狀態（ADR-027 音訊被擋警示） */
+  devices?: { deviceId: string | null; audio: string | null }[];
   mine?: (PublicTicket & { ahead: number; etaMin: number }) | null;
   suspended?: "suspended" | "expired" | null;
 }

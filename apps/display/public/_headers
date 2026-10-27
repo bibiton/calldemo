@@ -1,0 +1,4 @@
+# Cloudflare Pages：門店後台（store.<domain>）試聽語音時跨來源讀取 /audio/*（05-apps §4）
+/audio/*
+  Access-Control-Allow-Origin: *
+  Cache-Control: public, max-age=86400

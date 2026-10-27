@@ -10,6 +10,18 @@ export function parseNumber(number: string): { letters: string; n: number } | nu
   return m ? { letters: m[1], n: Number(m[2]) } : null;
 }
 
+/** 某個號碼要用到的語音檔（相對 manifest 的路徑）。A～F 整段一檔；其他字首逐字母＋純號碼。超出範圍回空陣列。 */
+export function numberFiles(manifest: Manifest, number: string): string[] {
+  const p = parseNumber(number);
+  if (!p) return [];
+  const r = manifest.rules.number;
+  const [lo, hi] = r.combined.range;
+  if (p.n < lo || p.n > hi) return [];
+  const fill = (tpl: string, L: string) => tpl.replace("{L}", L).replace("{NNN}", String(p.n).padStart(3, "0")).replace("{n}", String(p.n));
+  if (p.letters.length === 1 && r.combined.letters.includes(p.letters)) return [fill(r.combined.file, p.letters)];
+  return [...Array.from(p.letters, (L) => fill(r.fallback.letterFile, L)), fill(r.fallback.numberFile, "_")];
+}
+
 export function createPlanner(manifest: Manifest, settings: VoiceSettings, rng: () => number = Math.random, audioBase = "/audio/") {
   const byKey = new Map<string, ManifestFile>(manifest.files.map((f) => [f.key, f]));
   const g = manifest.gapsMs;

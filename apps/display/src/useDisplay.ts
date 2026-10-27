@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { QcsSocket, type PublicTicket, type StoreInfo, type SocketStatus } from "@qcs/shared";
-import { wsUrl, store } from "./lib/env";
+import { API_BASE, wsUrl, store } from "./lib/env";
+import { AudioWarmer, warmUrls } from "./audio/warm";
 import { createPlanner, type Planner } from "./audio/plan";
 import { normalizeVoiceSettings, isMuted } from "./audio/settings";
 import { CallQueue } from "./audio/call-queue";
@@ -52,8 +53,12 @@ declare global {
   }
 }
 
-export function useDisplay(token: string, storeId: string) {
+export function useDisplay(token: string, storeId: string, onRevoked: () => void = () => {}) {
   const [state, dispatch] = useReducer(reducer, initial);
+  const [adsVersion, setAdsVersion] = useState(0);
+  const revokedRef = useRef(onRevoked);
+  revokedRef.current = onRevoked;
+  const warmer = useMemo(() => new AudioWarmer((u) => fetch(u).then((r) => void r.arrayBuffer())), []);
   const [conn, setConn] = useState<SocketStatus>("connecting");
   const [gateView, setGateView] = useState({ prompt: false, alert: false });
   const [incomplete, setIncomplete] = useState(false);
@@ -96,11 +101,20 @@ export function useDisplay(token: string, storeId: string) {
           throw e;
         }
       },
-      onBusyChange: (busy) => (busy ? ads.pauseForCall() : ads.resumeAfterCall()),
+      // 叫號播放時暫停廣告與背景下載語音（07 §7：播放時暫停下載）
+      onBusyChange: (busy) => {
+        if (busy) {
+          ads.pauseForCall();
+          warmer.pause();
+        } else {
+          ads.resumeAfterCall();
+          warmer.resume();
+        }
+      },
     });
     window.__qcsAudio = { gate, queue };
     return { player, gate, queue, mode, resend: () => lastReported && report(lastReported) };
-  }, [ads]);
+  }, [ads, warmer]);
 
   // 語音 manifest（隨 display 靜態部署，ADR-026）
   useEffect(() => {
@@ -143,9 +157,19 @@ export function useDisplay(token: string, storeId: string) {
       protocols: () => ["qcs.v1", `auth.${token}`],
       initialLastSeq: null, // 面板重開一律拿 snapshot；同一次執行內重連才用 lastSeq 補推
       onSeq: (n) => store.set(seqKey, String(n)),
-      onStatus: (st) => {
+      onStatus: (st, code) => {
         setConn(st);
         if (st === "open") audio.resend();
+        // 4001＝店長解除配對：確認 token 真的失效才回配對畫面（避免網路瞬斷誤判）
+        if (code === 4001)
+          void fetch(`${API_BASE}/api/display/ads/manifest`, { headers: { authorization: `Bearer ${token}` } })
+            .then((r) => {
+              if (r.status === 401) {
+                s.stop();
+                revokedRef.current();
+              }
+            })
+            .catch(() => {});
       },
       onMessage: (m) => {
         if (m.t !== "evt") return;
@@ -153,9 +177,18 @@ export function useDisplay(token: string, storeId: string) {
           offsetRef.current = m.data.serverTime - Date.now();
           settingsRef.current = normalizeVoiceSettings(m.data.store?.voiceSettings);
           const man = (window as any).__qcsManifest as Manifest | undefined;
-          if (man) plannerRef.current = createPlanner(man, settingsRef.current);
+          if (man) {
+            plannerRef.current = createPlanner(man, settingsRef.current);
+            warmer.enqueue(warmUrls(man, settingsRef.current, m.data.store?.services ?? []));
+          }
         }
-        if (m.type === "store.closed" || m.type === "settings.changed") s.send({ t: "resync" });
+        if (m.type === "store.closed") s.send({ t: "resync" });
+        // 門店改了設定（語音、櫃台、QR 金鑰…）：重連取新的 hello，下一次叫號即套用（3.3）
+        if (m.type === "settings.changed") {
+          s.stop();
+          s.start();
+        }
+        if (m.type === "ads.manifest") setAdsVersion(m.data?.version ?? Date.now());
         dispatch(m);
         const item = toAnnouncement(m, Date.now() + offsetRef.current);
         if (item) {
@@ -171,5 +204,5 @@ export function useDisplay(token: string, storeId: string) {
     return () => s.stop();
   }, [token, storeId, audio]);
 
-  return { state, conn, gateView, incomplete, ads, mode: audio.mode };
+  return { state, conn, gateView, incomplete, ads, adsVersion, mode: audio.mode };
 }

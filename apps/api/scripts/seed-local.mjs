@@ -80,6 +80,8 @@ const stores = [
     voice: { mode: "standard" },
   },
   { id: "st_smoke", code: "SMOKE1", name: "smoke 測試門店", hours: [], voice: {} },
+  // 空門店：門店後台各頁「空狀態」的畫面（沒有櫃台、人員、裝置、廣告、歷史）
+  { id: "st_empty", code: "EMPTY1", name: "新開幕測試店", hours: [], voice: {}, empty: true },
 ];
 const staffNames = [
   ["王店員", "111111"],
@@ -111,29 +113,20 @@ for (const s of stores) {
   );
   sql.push(row("services", { id: `${s.id}_A`, store_id: s.id, name: "內用", prefix: "A", sort_order: 1, enabled: 1, daily_limit: null, created_at: now }));
   sql.push(row("services", { id: `${s.id}_B`, store_id: s.id, name: "外帶", prefix: "B", sort_order: 2, enabled: 1, daily_limit: null, created_at: now }));
+  sql.push(row("users", {
+    id: `${s.id}_admin`, role: "store_admin", store_id: s.id, display_name: "店長", email: `demo-${s.code.toLowerCase()}@example.com`,
+    password_hash: hash("demo-password"), pin_hash: null, status: "active", failed_attempts: 0, locked_until: null, token_version: 1, created_at: now, updated_at: now,
+  }));
+  if (s.empty) {
+    out.stores.push({ id: s.id, code: s.code, name: s.name, adminEmail: `demo-${s.code.toLowerCase()}@example.com`, adminPassword: "demo-password", staff: [] });
+    continue;
+  }
   [
     [1, [`${s.id}_A`]],
     [2, [`${s.id}_A`]],
     [3, [`${s.id}_B`]],
   ].forEach(([n, svc]) =>
     sql.push(row("counters", { id: `${s.id}_c${n}`, store_id: s.id, name: `${n} 號櫃台`, number: n, service_ids: JSON.stringify(svc), enabled: 1, created_at: now })),
-  );
-  sql.push(
-    row("users", {
-      id: `${s.id}_admin`,
-      role: "store_admin",
-      store_id: s.id,
-      display_name: "店長",
-      email: `demo-${s.code.toLowerCase()}@example.com`,
-      password_hash: hash("demo-password"),
-      pin_hash: null,
-      status: "active",
-      failed_attempts: 0,
-      locked_until: null,
-      token_version: 1,
-      created_at: now,
-      updated_at: now,
-    }),
   );
   staffNames.forEach(([name, pin], i) =>
     sql.push(
@@ -173,10 +166,13 @@ for (const s of stores) {
     sql.push(row("ad_playlist_items", { id: `${s.id}_it${i + 1}`, playlist_id: `${s.id}_pl`, asset_id: id, sort_order: i, duration_ms: kind === "image" ? 6000 : null, active_from: null, active_to: null, active_dows: "[0,1,2,3,4,5,6]", start_date: null, end_date: null, enabled: 1 }));
   });
 
+  if (s.id === "st_demo_zs") sql.push(...demoHistory(s.id));
   out.stores.push({
     id: s.id,
     code: s.code,
     name: s.name,
+    adminEmail: `demo-${s.code.toLowerCase()}@example.com`,
+    adminPassword: "demo-password",
     displayToken,
     staffDeviceToken,
     staff: staffNames.map(([name, pin], i) => ({ id: `${s.id}_staff${i + 1}`, name, pin })),
@@ -185,6 +181,37 @@ for (const s of stores) {
       staff: `http://localhost:5173/?device=${staffDeviceToken}`,
     },
   });
+}
+
+/**
+ * 示範報表用：前 7 個營業日的歷史（只有遮罩姓名、無手機原文與 HMAC，ADR-015）。固定亂數種子，重跑結果相同。
+ */
+function demoHistory(storeId) {
+  let x = 20261027;
+  const rnd = () => ((x = (x * 1103515245 + 12345) % 2147483648) / 2147483648);
+  const out = [];
+  const ymd = (ms) => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Taipei" }).format(ms);
+  for (let d = 7; d >= 1; d--) {
+    const bd = ymd(now - d * 86400_000);
+    const base = Date.parse(`${bd}T11:00:00+08:00`);
+    for (const [svc, prefix, count] of [["A", "A", 18 + Math.floor(rnd() * 14)], ["B", "B", 6 + Math.floor(rnd() * 8)]]) {
+      for (let i = 1; i <= count; i++) {
+        const created = base + Math.floor(rnd() * 9 * 3600_000) + (rnd() < 0.4 ? 1.2 * 3600_000 : 0);
+        const r = rnd();
+        const status = r < 0.82 ? "done" : r < 0.9 ? "skipped" : r < 0.95 ? "no_show" : "cancelled";
+        const called = status === "cancelled" ? null : created + Math.floor((2 + rnd() * 18) * 60_000);
+        const serving = status === "done" ? called + 30_000 : null;
+        const ended = status === "done" ? serving + Math.floor((3 + rnd() * 6) * 60_000) : (called ?? created) + 5 * 60_000;
+        out.push(row("tickets_history", {
+          id: `${storeId}_h_${bd}_${svc}_${i}`, store_id: storeId, business_date: bd, service_id: `${storeId}_${svc}`,
+          number: `${prefix}${String(i).padStart(3, "0")}`, final_status: status, name_masked: "王○明", phone_hmac: null, phone_masked: null,
+          counter_id: `${storeId}_c1`, staff_id: null, recall_count: 0, transfer_count: 0,
+          created_at: created, called_at: called, serving_at: serving, ended_at: ended, source: "qr",
+        }));
+      }
+    }
+  }
+  return out;
 }
 
 const sqlFile = join(apiDir, ".wrangler/seed.sql");
@@ -200,10 +227,11 @@ run(["d1", "execute", "qcs-db-local", ...common, "--file", sqlFile]);
 mkdirSync(dirname(outFile), { recursive: true });
 writeFileSync(outFile, JSON.stringify(out, null, 2));
 console.log("✓ 本機 seed 完成\n");
-for (const s of out.stores.filter((x) => x.id !== "st_smoke")) {
+for (const s of out.stores.filter((x) => x.id !== "st_smoke" && x.urls)) {
   console.log(`【${s.name}】門店碼 ${s.code}`);
   console.log(`  面板：${s.urls.display}`);
   console.log(`  人員：${s.urls.staff}`);
-  console.log(`  人員 PIN：${s.staff.map((u) => `${u.name} ${u.pin}`).join("、")}\n`);
+  console.log(`  人員 PIN：${s.staff.map((u) => `${u.name} ${u.pin}`).join("、")}`);
+  console.log(`  門店後台：http://localhost:5172/  ${s.adminEmail} ／ ${s.adminPassword}\n`);
 }
 console.log(`（完整輸出：${outFile}）`);

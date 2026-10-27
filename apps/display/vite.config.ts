@@ -3,7 +3,7 @@ import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { cpSync, createReadStream, existsSync, statSync } from "node:fs";
 import { join, normalize, resolve } from "node:path";
-import { devProxy } from "../../packages/shared/vite/preset";
+import { API_TARGET, devProxy } from "../../packages/shared/vite/preset";
 
 const AUDIO_SRC = resolve(import.meta.dirname, "../../assets/audio");
 const SKIP = new Set(["demo", "README.md", ".gen-cache.json"]);
@@ -34,6 +34,7 @@ function audioPack(): Plugin {
 
 export default defineConfig({
   plugins: [react(), tailwindcss(), audioPack()],
-  server: { proxy: devProxy },
-  preview: { proxy: devProxy },
+  // 本機模擬 media.<domain>：/ads/* 轉到 Worker 的 /media/ads/*（R2 本機模擬，只在 ENV=local 開放）
+  server: { proxy: { ...devProxy, "/ads": { target: API_TARGET, rewrite: (p: string) => "/media" + p } } },
+  preview: { proxy: { ...devProxy, "/ads": { target: API_TARGET, rewrite: (p: string) => "/media" + p } } },
 });
