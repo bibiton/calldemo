@@ -4,11 +4,11 @@
 
 ```
                          ┌──────────────── Cloudflare ────────────────────────────────┐
- 顧客手機 (q.)  ──HTTPS──▶│ Pages: customer   (靜態，免費)                              │
- 人員手機 (staff.)        │ Pages: staff / store / admin / display                      │
- 叫號面板 (display.)      │                                                             │
- 門店後台 (store.)        │        ┌──────────────── Worker: api (Hono) ──────────────┐ │
- 總後台  (admin., Access) │ api. ─▶│ 1. 驗身分 (JWT / Access / device token / QR token)│ │
+ 顧客手機 (call-q) ─────▶│ Pages: customer   (靜態，免費)                              │
+ 人員手機 (call-staff)   │ Pages: staff / store / admin / display                      │
+ 叫號面板 (call-display) │                                                             │
+ 門店後台 (call-store)   │        ┌──────────────── Worker: api (Hono) ──────────────┐ │
+ 總後台 (call-admin)     │ api  ─▶│ 1. 驗身分 (JWT / Access / device token / QR token)│ │
                          │        │ 2. 門店開通檢查（isolate 記憶體 → KV，60s）       │ │
                          │        │ 3. 路由：主檔 CRUD → D1；即時 → StoreQueueDO       │ │
                          │        └──┬──────────────┬──────────────┬─────────────────┘ │
@@ -38,7 +38,7 @@
 | **R2** | 門店上傳的 Logo、廣告圖片／影片、（未來）報表匯出 NDJSON | 個資、平台共用的語音包 | 出口免費；只放「各店不同、會上傳」的檔案 |
 | **Queues** | 歷史批次、Web Push 發送 | — | DO 不打外部網路；自帶重試 |
 | **Cron** | 每日彙總、清理 | 高頻工作 | 免費觸發 |
-| **Access** | 保護 `admin.` 與 `api./admin/*` | 門店／人員 | 平台管理員 ≤ 50 人免費 |
+| **Access** | 保護 `call-admin.jjoy.ai` 整個 host（含同源 `/api/*`，ADR-047） | 門店／人員 | 平台管理員 ≤ 50 人免費 |
 
 ## 3. 關鍵流程
 
@@ -46,7 +46,7 @@
 
 ```
 面板（已配對）每 120 秒用門店 QR 金鑰自行計算 token，重繪 QR（DO 不參與、不被喚醒）
-  ↓ 顧客掃描 https://q.<domain>/s/<storeCode>?w=<window>&k=<token>
+  ↓ 顧客掃描 https://call-q.jjoy.ai/s/<storeCode>?w=<window>&k=<token>
 Worker 驗證：門店開通 → HMAC(window) 相符 → window ∈ {現在, 前一個}
   ↓ 發「取號 session」JWT（10 分鐘、單次使用 jti）
 顧客頁：選服務類別 → 填姓名＋手機 → 勾選個資同意 → 送出
@@ -87,17 +87,19 @@ DO.suspend()：廣播 store.suspended（面板顯示「服務暫停」）→ 關
 到期：Worker 比對 expires_at，不需任何排程即生效；DO 在下一次被喚醒時同樣檢查
 ```
 
-## 4. 網域
+## 4. 網域（ADR-049：只有 production，`jjoy.ai` 共用帳號，一律 `call-` 前綴）
 
 | 子網域 | 指向 | 保護 |
 |---|---|---|
-| `admin.<domain>` | Pages admin | Cloudflare Access |
-| `store.<domain>` | Pages store | 帳密 + JWT |
-| `staff.<domain>` | Pages staff | 人員 PIN（裝置先綁店） |
-| `display.<domain>` | Pages display | 裝置配對 |
-| `q.<domain>` | Pages customer | 動態 QR token |
-| `api.<domain>` | Worker api | 依路由 |
-| `media.<domain>` | R2 bucket（自訂網域，經 CF 快取） | 公開唯讀、檔名含 hash |
+| `call-admin.jjoy.ai` | Pages `call-admin-production`；`/api/*` 由 Worker route 接手（ADR-047） | Cloudflare Access（One-time PIN） |
+| `call-store.jjoy.ai` | Pages `call-store-production` | 帳密 + JWT |
+| `call-staff.jjoy.ai` | Pages `call-staff-production` | 人員 PIN（裝置先綁店） |
+| `call-display.jjoy.ai` | Pages `call-display-production` | 裝置配對 |
+| `call-q.jjoy.ai` | Pages `call-q-production`（apps/customer） | 動態 QR token |
+| `call-api.jjoy.ai` | Worker `call-api-production` | 依路由 |
+| `call-media.jjoy.ai` | R2 `call-media-production`（自訂網域，經 CF 快取；不開 r2.dev） | 公開唯讀、檔名含 hash |
+
+資源命名與部署見 [08-deploy-and-ops](08-deploy-and-ops.md) §2。
 
 ## 5. 為何是「每店一個 DO」
 

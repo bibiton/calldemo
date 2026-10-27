@@ -1,6 +1,6 @@
 # 叫號系統（queue-call-system）— 規劃文件
 
-> 狀態：**M0（本機部分）＋M1 核心叫號＋M2 通知＋M3 門店後台與授權已實作**（2026-10-27），本機測試（Vitest 210、Playwright 32）與視覺測試通過；尚未部署任何 Cloudflare 環境，實機推播／iOS／電視待 staging。
+> 狀態：**M0（本機部分）＋M1 核心叫號＋M2 通知＋M3 門店後台與授權已實作**（2026-10-27），本機測試（Vitest 210、Playwright 32）與視覺測試通過；尚未部署任何 Cloudflare 環境，實機推播／iOS／電視待部署後在正式網址驗證。
 > 逐項狀態見 [docs/09-roadmap.md](docs/09-roadmap.md)「M0／M1」「M2／M3 實作狀態」，視覺測試紀錄見 [docs/visual-review-M1.md](docs/visual-review-M1.md)、[docs/visual-review-M3.md](docs/visual-review-M3.md)。
 > `scripts/` 的部署腳本仍是草稿，**未實測**（M6）。
 > 文件日期：2026-10-27。價格查證日期：2026-10-27（來源見 [docs/02-cost-model.md](docs/02-cost-model.md)）。
@@ -54,7 +54,7 @@
 | [docs/08-deploy-and-ops.md](docs/08-deploy-and-ops.md) | monorepo、wrangler.toml、一鍵佈署設計、CI、回滾、監控 |
 | [docs/09-roadmap.md](docs/09-roadmap.md) | 分階段任務、完成條件與驗證方式 |
 | [docs/10-deploy-guide-for-owner.md](docs/10-deploy-guide-for-owner.md) | 給業主的逐步佈署教學（非工程師版） |
-| [docs/11-local-testing.md](docs/11-local-testing.md) | 本機開發（wrangler dev 一鍵起全部）、Vitest 必測情境、Playwright E2E、staging 實機驗證 |
+| [docs/11-local-testing.md](docs/11-local-testing.md) | 本機開發（wrangler dev 一鍵起全部）、Vitest 必測情境、Playwright E2E、部署後正式網址實機驗證 |
 | [docs/12-usage-metering.md](docs/12-usage-metering.md) | 每店用量計量、成本分攤、總後台用量頁與異常警示 |
 | [docs/13-demo-seed.md](docs/13-demo-seed.md) | Demo 資料包（虛構迴轉壽司品牌、素材授權、模擬叫號、一鍵灌入） |
 | [DECISIONS.md](DECISIONS.md) | 決策紀錄（ADR） |
@@ -91,3 +91,25 @@ pnpm e2e      # Playwright：獨立環境（8788／617x），截圖輸出 test-r
 ```
 
 顧客取號網址由面板上的 QR 產生（面板頁 `data-qr-url` 屬性也有同一網址）。
+
+## 部署（只有 production，ADR-049）
+
+DEMO 用途、成本最低：只有一個正式環境，網域 `jjoy.ai`（共用 Cloudflare 帳號，本系統資源一律 `call-` 前綴，腳本有安全閘）。
+
+```
+本機 pnpm dev ＋ pnpm test ＋ pnpm e2e 全過
+  → bash scripts/deploy.sh          # 一鍵部署到 production（憑證只讀 ~/.config/queue-call-system/cf.env）
+  → 部署後在正式網址驗證：smoke（自動）＋手機／電視實機
+```
+
+| 網址 | 用途 |
+|---|---|
+| `https://call-admin.jjoy.ai` | 總後台（Cloudflare Access，One-time PIN） |
+| `https://call-store.jjoy.ai` | 門店後台 |
+| `https://call-staff.jjoy.ai` | 人員端 |
+| `https://call-display.jjoy.ai` | 叫號面板 |
+| `https://call-q.jjoy.ai` | 顧客取號 |
+| `https://call-api.jjoy.ai` | Worker API |
+| `https://call-media.jjoy.ai` | 廣告／Logo（R2 自訂網域） |
+
+首次建置與逐步說明見 [docs/10-deploy-guide-for-owner.md](docs/10-deploy-guide-for-owner.md)，設計見 [docs/08-deploy-and-ops.md](docs/08-deploy-and-ops.md)。

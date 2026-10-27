@@ -3,7 +3,7 @@
 ## 1. 連線端點
 
 ```
-wss://api.<domain>/ws/store/<storeId>?role=display|staff|customer&lastSeq=<n>
+wss://call-api.jjoy.ai/ws/store/<storeId>?role=display|staff|customer&lastSeq=<n>
   驗證：display → device token；staff → staff JWT；customer → ticket token
   Sec-WebSocket-Protocol 帶 token（瀏覽器 WebSocket 無法自訂 header），Worker 驗證後原樣回傳 subprotocol
   實作：客戶端送 ["qcs.v1", "auth.<token>"]，伺服器回 "qcs.v1"（不回傳 token）。
@@ -147,7 +147,7 @@ visibilitychange → visible：重連帶 lastSeq，立即拿到最新狀態
 window   = floor((serverNow) / 120_000)                   // 120 秒一個時間窗
 storeKey = HMAC-SHA256(QR_ROOT_SECRET, storeId + ":" + qrKeyVersion)   // Worker 算，配對後經 hello 下發給面板
 token    = base32( HMAC-SHA256(storeKey, storeId + ":" + window) )[0..10]   // 10 字元 ≈ 50 bits
-URL      = https://q.<domain>/s/<storeCode>?w=<window>&k=<token>
+URL      = https://call-q.jjoy.ai/s/<storeCode>?w=<window>&k=<token>
 ```
 
 - `serverNow` = 本機時間 + `hello.serverTime` 推算的偏移（避免電視時鐘不準）。
