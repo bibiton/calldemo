@@ -1,0 +1,4 @@
+# 複製成 .dev.vars（不進 git）；seed 腳本（seed-local.mjs）會自動產生隨機值
+JWT_SECRET=change-me
+PHONE_PEPPER=change-me
+QR_ROOT_SECRET=change-me

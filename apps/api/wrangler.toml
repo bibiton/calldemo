@@ -1,0 +1,155 @@
+# Worker：API（Hono）＋ StoreQueueDO ＋ queue consumer ＋ cron（08-deploy-and-ops §3）
+# bindings 不會從頂層繼承到 env，每個 env 都完整寫一份。
+name = "qcs-api"
+main = "src/index.ts"
+compatibility_date = "2026-10-01"
+compatibility_flags = ["nodejs_compat"]
+
+# DO class 只能新增；刪除／改名不可逆
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["StoreQueueDO"]
+
+[observability]
+enabled = true
+
+# ---------- local（wrangler dev／vitest；全部本機模擬）----------
+[env.local]
+name = "qcs-api-local"
+vars = { ENV = "local", DEV_BYPASS_ACCESS = "1", APP_ORIGINS = "http://localhost:5171,http://localhost:5172,http://localhost:5173,http://localhost:5174,http://localhost:5175", MEDIA_BASE = "http://localhost:5174", CUSTOMER_BASE_URL = "http://localhost:5175" }
+
+[[env.local.d1_databases]]
+binding = "DB"
+database_name = "qcs-db-local"
+database_id = "00000000-0000-0000-0000-000000000000"
+migrations_dir = "migrations"
+
+[[env.local.kv_namespaces]]
+binding = "LICENSE"
+id = "qcs-license-local"
+
+[[env.local.r2_buckets]]
+binding = "MEDIA"
+bucket_name = "qcs-media-local"
+
+[[env.local.durable_objects.bindings]]
+name = "STORE_QUEUE"
+class_name = "StoreQueueDO"
+
+[[env.local.queues.producers]]
+binding = "Q_HISTORY"
+queue = "qcs-history-local"
+[[env.local.queues.producers]]
+binding = "Q_PUSH"
+queue = "qcs-push-local"
+
+[[env.local.queues.consumers]]
+queue = "qcs-history-local"
+max_batch_size = 10
+max_batch_timeout = 1
+max_retries = 5
+
+[env.local.triggers]
+crons = ["5 * * * *", "30 19 * * *"]
+
+# ---------- staging ----------
+[env.staging]
+name = "qcs-api-staging"
+routes = [{ pattern = "api.staging.example.com", custom_domain = true }]
+vars = { ENV = "staging", APP_ORIGINS = "https://q.staging.example.com,https://staff.staging.example.com,https://display.staging.example.com,https://store.staging.example.com,https://admin.staging.example.com", MEDIA_BASE = "https://media.staging.example.com", CUSTOMER_BASE_URL = "https://q.staging.example.com" }
+
+[[env.staging.d1_databases]]
+binding = "DB"
+database_name = "qcs-db-staging"
+database_id = "__D1_ID_STAGING__"
+migrations_dir = "migrations"
+
+[[env.staging.kv_namespaces]]
+binding = "LICENSE"
+id = "__KV_ID_STAGING__"
+
+[[env.staging.r2_buckets]]
+binding = "MEDIA"
+bucket_name = "qcs-media-staging"
+
+[[env.staging.durable_objects.bindings]]
+name = "STORE_QUEUE"
+class_name = "StoreQueueDO"
+
+[[env.staging.queues.producers]]
+binding = "Q_HISTORY"
+queue = "qcs-history-staging"
+[[env.staging.queues.producers]]
+binding = "Q_PUSH"
+queue = "qcs-push-staging"
+
+[[env.staging.queues.consumers]]
+queue = "qcs-history-staging"
+max_batch_size = 10
+max_batch_timeout = 30
+max_retries = 5
+dead_letter_queue = "qcs-history-dlq-staging"
+[[env.staging.queues.consumers]]
+queue = "qcs-push-staging"
+max_batch_size = 25
+max_batch_timeout = 2
+max_retries = 3
+dead_letter_queue = "qcs-push-dlq-staging"
+
+[[env.staging.analytics_engine_datasets]]
+binding = "USAGE"
+dataset = "qcs_usage_staging"
+
+[env.staging.triggers]
+crons = ["5 * * * *", "30 19 * * *"]
+
+# ---------- production ----------
+[env.production]
+name = "qcs-api"
+routes = [{ pattern = "api.example.com", custom_domain = true }]
+vars = { ENV = "production", APP_ORIGINS = "https://q.example.com,https://staff.example.com,https://display.example.com,https://store.example.com,https://admin.example.com", MEDIA_BASE = "https://media.example.com", CUSTOMER_BASE_URL = "https://q.example.com" }
+
+[[env.production.d1_databases]]
+binding = "DB"
+database_name = "qcs-db"
+database_id = "__D1_ID_PRODUCTION__"
+migrations_dir = "migrations"
+
+[[env.production.kv_namespaces]]
+binding = "LICENSE"
+id = "__KV_ID_PRODUCTION__"
+
+[[env.production.r2_buckets]]
+binding = "MEDIA"
+bucket_name = "qcs-media"
+
+[[env.production.durable_objects.bindings]]
+name = "STORE_QUEUE"
+class_name = "StoreQueueDO"
+
+[[env.production.queues.producers]]
+binding = "Q_HISTORY"
+queue = "qcs-history"
+[[env.production.queues.producers]]
+binding = "Q_PUSH"
+queue = "qcs-push"
+
+[[env.production.queues.consumers]]
+queue = "qcs-history"
+max_batch_size = 10
+max_batch_timeout = 30
+max_retries = 5
+dead_letter_queue = "qcs-history-dlq"
+[[env.production.queues.consumers]]
+queue = "qcs-push"
+max_batch_size = 25
+max_batch_timeout = 2
+max_retries = 3
+dead_letter_queue = "qcs-push-dlq"
+
+[[env.production.analytics_engine_datasets]]
+binding = "USAGE"
+dataset = "qcs_usage"
+
+[env.production.triggers]
+crons = ["5 * * * *", "30 19 * * *"]

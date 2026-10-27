@@ -1,0 +1,24 @@
+{
+  "name": "@qcs/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev --env local --port 8787 --ip 127.0.0.1",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json",
+    "migrate:local": "wrangler d1 migrations apply qcs-db-local --local --env local",
+    "seed:local": "node scripts/seed-local.mjs"
+  },
+  "dependencies": {
+    "@qcs/shared": "workspace:*",
+    "hono": "^4.13.14"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-plugin": "^1.4.8",
+    "@cloudflare/workers-types": "^5.20261027.1",
+    "typescript": "~5.9.3",
+    "vitest": "^4.1.0",
+    "wrangler": "^4.153.0"
+  }
+}
