@@ -17,7 +17,8 @@ pnpm test
 if [[ "${SKIP_E2E:-0}" == "1" ]]; then info "SKIP_E2E=1：略過 pnpm e2e"; else pnpm e2e; fi
 ok "型別檢查、測試、E2E 通過"
 
-PREV_VERSION="$(wr deployments list --env "$ENV_NAME" --json 2>/dev/null | jq -r '.[0].versions[0].version_id // empty' || true)"
+# deployments list 由舊到新（2026-10-27 實測），取最後一筆＝目前生效的版本（含當時的 secrets）
+PREV_VERSION="$(wr deployments list --env "$ENV_NAME" --json 2>/dev/null | jq -r '.[-1].versions[0].version_id // empty' || true)"
 info "目前版本：${PREV_VERSION:-（無，首次部署）}"
 
 wr d1 migrations apply "$D1_NAME" --remote --env "$ENV_NAME"

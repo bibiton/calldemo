@@ -25,7 +25,7 @@ const login = await fetch(`${api}/api/store/auth/login`, {
   body: JSON.stringify({ email: cfg.email, password: cfg.password }),
 });
 if (login.status !== 200) fail(`smoke 店長登入失敗：HTTP ${login.status}`);
-const { token } = await login.json();
+const { accessToken: token } = await login.json();
 
 const wsUrl = `${api.replace(/^http/, "ws")}/ws/store/${cfg.storeId}?role=staff`;
 const result = await new Promise((resolve) => {

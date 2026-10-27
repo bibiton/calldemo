@@ -332,7 +332,7 @@ async function pairProd(o) {
 
   const login = await api("/api/store/auth/login", { method: "POST", body: JSON.stringify({ email: o.adminEmail, password: o.adminPassword }) });
   if (login.status !== 200) die(`${o.name} 店長登入失敗（${login.status} ${login.body?.error ?? ""}）`);
-  const auth = { authorization: `Bearer ${login.body.token}` };
+  const auth = { authorization: `Bearer ${login.body.accessToken}` };
   const pair = async (seg, name) => {
     const st = await api(`/api/${seg}/pair/start`, { method: "POST", body: "{}" });
     if (st.status !== 200) die(`${seg} pair/start 失敗 ${st.status}`);
