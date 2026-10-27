@@ -1,0 +1,116 @@
+{
+  "brand": {
+    "name": "鮮迴壽司",
+    "nameEn": "Senkai Sushi",
+    "colors": {
+      "navy": "#1F2A44",
+      "red": "#C8102E"
+    }
+  },
+  "logo": {
+    "svg": "logo/logo.svg",
+    "png": "logo/logo-512.png"
+  },
+  "assets": [
+    {
+      "file": "ads/ad-01-tuna-nigiri.jpg",
+      "kind": "image",
+      "mime": "image/jpeg",
+      "width": 1080,
+      "height": 720,
+      "title": "鮪魚握壽司",
+      "durationMs": 6000,
+      "showOnCustomer": true
+    },
+    {
+      "file": "video/ad-video-01.mp4",
+      "kind": "video",
+      "mime": "video/mp4",
+      "width": 1080,
+      "height": 720,
+      "title": "迴轉壽司 每盤 $40 起",
+      "durationMs": 14000,
+      "showOnCustomer": false
+    },
+    {
+      "file": "ads/ad-02-salmon-oyako-don.jpg",
+      "kind": "image",
+      "mime": "image/jpeg",
+      "width": 1080,
+      "height": 720,
+      "title": "鮭魚親子丼",
+      "durationMs": 6000,
+      "showOnCustomer": true
+    },
+    {
+      "file": "ads/ad-03-autumn-sanma.jpg",
+      "kind": "image",
+      "mime": "image/jpeg",
+      "width": 1080,
+      "height": 720,
+      "title": "秋季限定 炙烤秋刀魚",
+      "durationMs": 6000,
+      "showOnCustomer": false
+    },
+    {
+      "file": "ads/ad-04-weekday-lunch.jpg",
+      "kind": "image",
+      "mime": "image/jpeg",
+      "width": 1080,
+      "height": 720,
+      "title": "平日午間套餐 $199",
+      "durationMs": 6000,
+      "showOnCustomer": false
+    },
+    {
+      "file": "ads/ad-05-takeout-combo.jpg",
+      "kind": "image",
+      "mime": "image/jpeg",
+      "width": 1080,
+      "height": 720,
+      "title": "外帶綜合盒 $299",
+      "durationMs": 6000,
+      "showOnCustomer": false
+    },
+    {
+      "file": "video/ad-video-02.mp4",
+      "kind": "video",
+      "mime": "video/mp4",
+      "width": 1080,
+      "height": 720,
+      "title": "鮮迴壽司 品牌短片",
+      "durationMs": 14600,
+      "showOnCustomer": false
+    },
+    {
+      "file": "ads/ad-06-new-duo-nigiri.jpg",
+      "kind": "image",
+      "mime": "image/jpeg",
+      "width": 1080,
+      "height": 720,
+      "title": "新品上市 雙色握壽司",
+      "durationMs": 6000,
+      "showOnCustomer": false
+    },
+    {
+      "file": "ads/ad-07-aburi-series.jpg",
+      "kind": "image",
+      "mime": "image/jpeg",
+      "width": 1080,
+      "height": 720,
+      "title": "炙燒系列",
+      "durationMs": 6000,
+      "showOnCustomer": true
+    },
+    {
+      "file": "ads/ad-08-member-points.jpg",
+      "kind": "image",
+      "mime": "image/jpeg",
+      "width": 1080,
+      "height": 720,
+      "title": "會員消費集點送",
+      "durationMs": 6000,
+      "showOnCustomer": false
+    }
+  ]
+}

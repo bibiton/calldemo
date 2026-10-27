@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-labelledby="t">
+  <title id="t">鮮迴壽司 Senkai Sushi（DEMO 虛構品牌）</title>
+  <rect width="512" height="512" fill="#FFFFFF"/>
+  <!-- conveyor loop -->
+  <circle cx="256" cy="256" r="206" fill="none" stroke="#1F2A44" stroke-width="30"/>
+  <!-- plates travelling on the loop -->
+  <circle cx="256" cy="50" r="24" fill="#C8102E"/>
+  <circle cx="434.4" cy="359" r="24" fill="#C8102E"/>
+  <circle cx="77.6" cy="359" r="24" fill="#C8102E"/>
+  <text x="256" y="292" text-anchor="middle" font-size="128" font-weight="700" fill="#1F2A44"
+        font-family="Noto Sans CJK TC, Noto Sans TC, PingFang TC, Microsoft JhengHei, sans-serif">鮮迴</text>
+  <text x="256" y="350" text-anchor="middle" font-size="30" font-weight="700" letter-spacing="8" fill="#C8102E"
+        font-family="Noto Sans CJK TC, Noto Sans TC, PingFang TC, Microsoft JhengHei, sans-serif">SENKAI</text>
+</svg>
