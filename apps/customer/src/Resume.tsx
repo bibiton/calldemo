@@ -18,11 +18,11 @@ export function Resume({ onDone }: { onDone: (s: Saved, t: Ticket) => void }) {
     setBusy(true);
     setErr(null);
     try {
-      const r = await api<{ ticketToken: string; ticket: Ticket; store: StoreLite; push: { publicKey: string } | null }>("/api/transfer/redeem", {
+      const r = await api<{ ticketToken: string; ticket: Ticket; store: StoreLite; push: { publicKey: string } | null; images?: string[] }>("/api/transfer/redeem", {
         method: "POST",
         body: JSON.stringify({ code }),
       });
-      onDone({ token: r.ticketToken, ticketId: r.ticket.id, store: r.store, push: r.push }, r.ticket);
+      onDone({ token: r.ticketToken, ticketId: r.ticket.id, store: { ...r.store, images: r.images ?? [] }, push: r.push }, r.ticket);
     } catch (e) {
       const c = e instanceof ApiError ? e.code : "";
       setErr(c === "CODE_NOT_FOUND" ? "轉交碼錯誤或已過期，請回 Safari 號碼頁重新產生。" : c === "TICKET_ENDED" ? "這個號碼已結束。" : "網路連線不穩，請稍後再試。");

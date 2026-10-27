@@ -5,6 +5,8 @@ export interface StoreLite {
   code: string;
   name: string;
   logoUrl?: string | null;
+  /** 門店勾選「顯示於顧客手機」的圖片（ADR-048） */
+  images?: string[];
 }
 export interface Ticket {
   id: string;

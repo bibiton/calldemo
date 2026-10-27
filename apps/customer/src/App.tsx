@@ -4,6 +4,7 @@ import { api, ApiError } from "./lib/api";
 import { unlockSound } from "./lib/alerts";
 import { isIos, isStandalone, requestSubscription, saveSubscription, type PushState } from "./lib/push";
 import { Notice, Shell } from "./Shell";
+import { Hero } from "./ImageCarousel";
 import { TicketPage } from "./TicketPage";
 import { Resume } from "./Resume";
 import { pushFlag, savedTicket, type Saved, type StoreLite, type Ticket } from "./saved";
@@ -54,9 +55,9 @@ export function App() {
       const saved = savedTicket.get();
       if (saved && (!code || saved.store.code === code)) {
         try {
-          const r = await api<{ ticket: Ticket; push: PushInfo }>("/api/tickets/me", { token: saved.token });
+          const r = await api<{ ticket: Ticket; push: PushInfo; store: StoreLite; images?: string[] }>("/api/tickets/me", { token: saved.token });
           if (ACTIVE.includes(r.ticket.status)) {
-            const s2 = { ...saved, push: r.push };
+            const s2 = { ...saved, push: r.push, store: { ...saved.store, logoUrl: r.store?.logoUrl ?? saved.store.logoUrl, images: r.images ?? [] } };
             savedTicket.set(s2);
             return setView({ k: "ticket", saved: s2, ticket: r.ticket, existing: false });
           }
@@ -69,9 +70,10 @@ export function App() {
       if (!code && /^\/(resume|t\/)/.test(location.pathname)) return setView({ k: "resume" });
       if (!code || !q.get("w") || !q.get("k")) return setView({ k: "noQr" });
       try {
-        const r = await api<{ sessionToken: string; store: StoreLite; services: Service[]; push: PushInfo }>(
+        const r0 = await api<{ sessionToken: string; store: StoreLite; services: Service[]; push: PushInfo; images?: string[] }>(
           `/api/s/${encodeURIComponent(code)}/session?w=${encodeURIComponent(q.get("w")!)}&k=${encodeURIComponent(q.get("k")!)}`,
         );
+        const r = { ...r0, store: { ...r0.store, images: r0.images ?? [] } };
         if (r.services.length === 1) setView({ k: "form", session: r.sessionToken, store: r.store, service: r.services[0], push: r.push });
         else setView({ k: "service", session: r.sessionToken, store: r.store, services: r.services, push: r.push });
       } catch (e) {
@@ -91,7 +93,7 @@ export function App() {
       return <Resume onDone={(saved, ticket) => { savedTicket.set(saved); setView({ k: "ticket", saved, ticket, existing: false }); }} />;
     case "service":
       return (
-        <Shell storeName={view.store.name} step={1}>
+        <Shell storeName={view.store.name} logoUrl={view.store.logoUrl} step={1}>
           <h2 className="mb-4 text-xl font-bold">請選擇服務</h2>
           <ul className="flex flex-col gap-3">
             {view.services.map((s) => (
@@ -152,11 +154,11 @@ function TakeForm({
     setBusy(true);
     setError(null);
     try {
-      const r = await api<{ ticket: Ticket; ticketToken: string; existing: boolean; store: StoreLite }>(`/api/s/${encodeURIComponent(view.store.code)}/tickets`, {
+      const r = await api<{ ticket: Ticket; ticketToken: string; existing: boolean; store: StoreLite; images?: string[] }>(`/api/s/${encodeURIComponent(view.store.code)}/tickets`, {
         method: "POST",
         body: JSON.stringify({ session: view.session, serviceId: view.service.id, name, phone, consent }),
       });
-      const saved: Saved = { token: r.ticketToken, ticketId: r.ticket.id, store: r.store, push: view.push };
+      const saved: Saved = { token: r.ticketToken, ticketId: r.ticket.id, store: { ...r.store, images: r.images ?? view.store.images ?? [] }, push: view.push };
       savedTicket.set(saved);
       const pending = subP
         ? subP.then(async (x): Promise<PushState> => {
@@ -175,7 +177,8 @@ function TakeForm({
   }
 
   return (
-    <Shell storeName={view.store.name} step={2}>
+    <Shell storeName={view.store.name} logoUrl={view.store.logoUrl} step={2}>
+      <Hero src={view.store.images?.[0]} />
       <button className="mb-3 min-h-11 self-start text-base text-brand underline" onClick={onBack}>
         ‹ 重新選擇服務
       </button>

@@ -7,6 +7,7 @@ import type { Hono } from "hono";
 import { toHex, ulid } from "@qcs/shared";
 import { err, HHMM, isInt, isStr, type AppEnv, type C } from "./common";
 import type { AdminHelpers } from "./pairing";
+import { refreshStore } from "../lib/store-ctx";
 
 export const AD_LIMITS = {
   image: { maxBytes: 5 * 1024 * 1024, mimes: { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" } as Record<string, string> },
@@ -48,6 +49,7 @@ export function registerAdRoutes(r: Hono<AppEnv>, h: AdminHelpers): void {
     const pl = await playlist(c, sid);
     await c.env.DB.batch([...stmts, c.env.DB.prepare("UPDATE ad_playlists SET version=version+1, updated_at=? WHERE id=?").bind(now(), pl.id)]);
     const v = pl.version + 1;
+    await refreshStore(c.env, sid); // 顧客手機圖片隨門店資料快取（ADR-048）
     await deps.stub(c, sid).adsChanged(v);
     return v;
   }
@@ -56,7 +58,7 @@ export function registerAdRoutes(r: Hono<AppEnv>, h: AdminHelpers): void {
     const sid = c.get("admin").store_id;
     const pl = await playlist(c, sid);
     const rows = await c.env.DB.prepare(
-      `SELECT i.id AS item_id, i.sort_order, i.duration_ms AS item_ms, i.active_from, i.active_to, i.active_dows, i.start_date, i.end_date, i.enabled,
+      `SELECT i.id AS item_id, i.sort_order, i.duration_ms AS item_ms, i.active_from, i.active_to, i.active_dows, i.start_date, i.end_date, i.enabled, i.show_on_customer,
               a.id AS asset_id, a.kind, a.mime, a.bytes, a.width, a.height, a.duration_ms AS asset_ms, a.r2_key, a.name, a.created_at
        FROM ad_playlist_items i JOIN ad_assets a ON a.id=i.asset_id
        WHERE i.playlist_id=? AND a.status='ready' ORDER BY i.sort_order, i.id`,
@@ -77,6 +79,7 @@ export function registerAdRoutes(r: Hono<AppEnv>, h: AdminHelpers): void {
         videoMs: x.asset_ms,
         imageMs: x.item_ms,
         enabled: !!x.enabled,
+        showOnCustomer: !!x.show_on_customer,
         activeFrom: x.active_from,
         activeTo: x.active_to,
         dows: JSON.parse(x.active_dows || "[0,1,2,3,4,5,6]"),
@@ -198,20 +201,16 @@ export function registerAdRoutes(r: Hono<AppEnv>, h: AdminHelpers): void {
       b.dows.every((d: unknown) => isInt(d, 0, 6)) &&
       (sd === null || YMD.test(String(sd))) &&
       (ed === null || YMD.test(String(ed))) &&
-      !(sd && ed && String(sd) > String(ed));
+      !(sd && ed && String(sd) > String(ed)) &&
+      (b?.showOnCustomer === undefined || typeof b.showOnCustomer === "boolean") &&
+      !(it.kind !== "image" && b?.showOnCustomer === true); // 顧客手機只放圖片（省顧客流量）
     if (!ok) return err(c, 422, "INVALID");
+    const show = typeof b.showOnCustomer === "boolean" ? (b.showOnCustomer ? 1 : 0) : null;
     const dows = JSON.stringify([...new Set(b.dows as number[])].sort());
     const version = await bump(c, [
-      c.env.DB.prepare("UPDATE ad_playlist_items SET duration_ms=?, enabled=?, active_from=?, active_to=?, active_dows=?, start_date=?, end_date=? WHERE id=?").bind(
-        ms,
-        b.enabled ? 1 : 0,
-        from,
-        to,
-        dows,
-        sd,
-        ed,
-        it.id,
-      ),
+      c.env.DB.prepare(
+        "UPDATE ad_playlist_items SET duration_ms=?, enabled=?, active_from=?, active_to=?, active_dows=?, start_date=?, end_date=?, show_on_customer=COALESCE(?, show_on_customer) WHERE id=?",
+      ).bind(ms, b.enabled ? 1 : 0, from, to, dows, sd, ed, show, it.id),
     ]);
     return c.json({ ok: true, version });
   });

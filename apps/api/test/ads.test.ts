@@ -164,3 +164,58 @@ describe("3.4 廣告管理：上傳到 R2、容量、排序、秒數、時段", 
     expect((await req(`/media/${key}`, {}, { ...env, ENV: "staging", DEV_BYPASS_ACCESS: undefined })).status).toBe(404);
   });
 });
+
+describe("顧客手機圖片（ADR-048）：廣告項目「顯示於顧客手機」", () => {
+  const T = Date.UTC(2026, 9, 27, 4, 0); // 台北 週二 12:00
+  const appAt = createApp({ now: () => T });
+  const custSession = async (s: Seeded) => {
+    const { computeQrToken, deriveStoreKey, qrWindow } = await import("@qcs/shared");
+    const key = await deriveStoreKey(env.QR_ROOT_SECRET, s.storeId, 1);
+    const w = qrWindow(T);
+    return (await (await appAt.request(`/api/s/${s.code}/session?w=${w}&k=${await computeQrToken(key, s.storeId, w)}`, {}, env)).json()) as any;
+  };
+  const setItem = (t: string, id: string, body: Record<string, unknown>) =>
+    req(`/api/store/ads/items/${id}`, { method: "PUT", token: t, body: { imageMs: 8000, enabled: true, dows: [0, 1, 2, 3, 4, 5, 6], ...body } });
+
+  it("預設關；勾選後取號頁與號碼頁回傳圖片網址（只圖片、依排序、最多 6 張）；取消勾選即移除", async () => {
+    const s = await seedStore();
+    const t = await admin(s);
+    await upload(t, bytes(1000, 1));
+    await upload(t, bytes(1000, 2));
+    const items = (await list(t)).items;
+    expect(items.every((x: any) => x.showOnCustomer === false)).toBe(true);
+    expect((await custSession(s)).images).toEqual([]);
+    expect((await setItem(t, items[1].itemId, { showOnCustomer: true })).status).toBe(200);
+    expect((await setItem(t, items[0].itemId, { showOnCustomer: true })).status).toBe(200);
+    const sess = await custSession(s);
+    expect(sess.images).toEqual([items[0].url, items[1].url]);
+    // 號碼頁
+    const take: any = await (await appAt.request(`/api/s/${s.code}/tickets`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ session: sess.sessionToken, serviceId: `${s.storeId}_A`, name: "王小明", phone: "0912345678", consent: true }) }, env)).json();
+    const me: any = await (await appAt.request("/api/tickets/me", { headers: { authorization: `Bearer ${take.ticketToken}` } }, env)).json();
+    expect(me.images).toEqual([items[0].url, items[1].url]);
+    expect((await list(t)).items.map((x: any) => x.showOnCustomer)).toEqual([true, true]);
+    await setItem(t, items[0].itemId, { showOnCustomer: false });
+    expect((await custSession(s)).images).toEqual([items[1].url]);
+  });
+
+  it("停用的項目、不在時段／星期／日期內的項目不顯示；影片不能勾選（422）；未帶欄位時維持原值", async () => {
+    const s = await seedStore();
+    const t = await admin(s);
+    await upload(t, bytes(900, 3));
+    const [img] = (await list(t)).items;
+    await setItem(t, img.itemId, { showOnCustomer: true, activeFrom: "18:00", activeTo: "21:00" });
+    expect((await custSession(s)).images).toEqual([]);
+    await setItem(t, img.itemId, { showOnCustomer: true, dows: [0] });
+    expect((await custSession(s)).images).toEqual([]);
+    await setItem(t, img.itemId, { showOnCustomer: true, endDate: "2026-10-01" });
+    expect((await custSession(s)).images).toEqual([]);
+    await setItem(t, img.itemId, { showOnCustomer: true, enabled: false });
+    expect((await custSession(s)).images).toEqual([]);
+    await setItem(t, img.itemId, {});
+    expect((await list(t)).items[0].showOnCustomer).toBe(true);
+    expect((await custSession(s)).images).toHaveLength(1);
+    await upload(t, bytes(3000, 9), { kind: "video", mime: "video/mp4", durationMs: 5000, name: "v.mp4" });
+    const vid = (await list(t)).items.find((x: any) => x.kind === "video");
+    expect((await req(`/api/store/ads/items/${vid.itemId}`, { method: "PUT", token: t, body: { enabled: true, dows: [1], showOnCustomer: true } })).status).toBe(422);
+  });
+});

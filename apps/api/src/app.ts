@@ -6,7 +6,7 @@ import { encodeHeader } from "./do/store-queue";
 import { signJwt, verifyJwt } from "./lib/jwt";
 import { verifySecret } from "./lib/password";
 import { bearer, protocolToken, verifyDeviceToken, verifyStaffToken, verifyTicketToken } from "./lib/auth";
-import { licenseError, loadStore, storeIdByCode, toCtx, type StoreRecord } from "./lib/store-ctx";
+import { customerImages, licenseError, loadStore, storeIdByCode, toCtx, type StoreRecord } from "./lib/store-ctx";
 import { verifyAdminAccess } from "./lib/admin-auth";
 import { err, type AppEnv, type C } from "./routes/common";
 import { storeAdminRoutes } from "./routes/store-admin";
@@ -110,6 +110,7 @@ export function createApp(deps: AppDeps = {}) {
       store: { id, code: rec.store.code, name: rec.store.name, logoUrl: rec.store.logoUrl },
       services: rec.store.services.map((s) => ({ id: s.id, name: s.name, prefix: s.prefix, waiting: waiting[s.id] ?? 0 })),
       push: pushInfo(c, rec),
+      images: customerImages(rec, now()),
     });
   });
 
@@ -140,7 +141,7 @@ export function createApp(deps: AppDeps = {}) {
       store_id: id,
       exp: Math.floor(now() / 1000) + TICKET_TTL_S,
     });
-    return c.json({ ticket: r.ticket, ticketToken, existing: r.existing, store: { id, code: rec.store.code, name: rec.store.name } });
+    return c.json({ ticket: r.ticket, ticketToken, existing: r.existing, store: { id, code: rec.store.code, name: rec.store.name, logoUrl: rec.store.logoUrl }, images: customerImages(rec, now()) });
   });
 
   app.get("/api/tickets/me", async (c) => {
@@ -151,7 +152,7 @@ export function createApp(deps: AppDeps = {}) {
     if (!rec) return err(c, 404, "STORE_NOT_FOUND");
     const ticket = await stub(c, t.store_id).ticketView(await toCtx(c.env, rec, false), t.sub);
     if (!ticket) return err(c, 404, "TICKET_NOT_FOUND");
-    return c.json({ ticket, store: { id: rec.store.id, code: rec.store.code, name: rec.store.name, logoUrl: rec.store.logoUrl }, push: pushInfo(c, rec) });
+    return c.json({ ticket, store: { id: rec.store.id, code: rec.store.code, name: rec.store.name, logoUrl: rec.store.logoUrl }, push: pushInfo(c, rec), images: customerImages(rec, now()) });
   });
 
   app.post("/api/tickets/:id/cancel", async (c) => {
@@ -215,7 +216,7 @@ export function createApp(deps: AppDeps = {}) {
     const ticket = await stub(c, row.store_id).ticketView(await toCtx(c.env, rec, false), row.ticket_id);
     if (!ticket || !["waiting", "called", "serving", "skipped"].includes(ticket.status)) return err(c, 409, "TICKET_ENDED");
     const ticketToken = await signJwt(c.env.JWT_SECRET, { sub: row.ticket_id, role: "customer", store_id: row.store_id, exp: Math.floor(now() / 1000) + TICKET_TTL_S });
-    return c.json({ ticketToken, ticket, store: { id: rec.store.id, code: rec.store.code, name: rec.store.name, logoUrl: rec.store.logoUrl }, push: pushInfo(c, rec) });
+    return c.json({ ticketToken, ticket, store: { id: rec.store.id, code: rec.store.code, name: rec.store.name, logoUrl: rec.store.logoUrl }, push: pushInfo(c, rec), images: customerImages(rec, now()) });
   });
 
   // ---------- 人員（ADR-004：裝置綁店＋PIN）----------

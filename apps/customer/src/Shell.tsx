@@ -1,10 +1,25 @@
-export function Shell({ children, storeName, step }: { children: React.ReactNode; storeName?: string; step?: number }) {
+import { useState } from "react";
+
+export function Shell({ children, storeName, logoUrl, step }: { children: React.ReactNode; storeName?: string; logoUrl?: string | null; step?: number }) {
+  // Logo 讀不到就退回門店名稱（不出現破圖）
+  const [logoOk, setLogoOk] = useState(true);
+  const showLogo = !!logoUrl && logoOk;
   return (
     <div className="mx-auto flex min-h-full max-w-md flex-col">
-      <header className="flex items-center justify-between bg-brand px-4 py-3 text-white">
+      <header className="flex min-h-14 items-center justify-between gap-3 bg-brand px-4 py-2 text-white">
         <span className="flex min-w-0 items-center gap-2 text-lg font-bold">
-          <span className="h-3 w-3 shrink-0 rounded-full bg-accent" aria-hidden />
-          <span className="truncate">{storeName ?? "線上取號"}</span>
+          {showLogo ? (
+            <span className="flex h-10 max-w-[60vw] items-center rounded-lg bg-white px-2 py-1" data-testid="store-logo">
+              <img src={logoUrl!} alt={storeName ?? "門店"} className="h-full w-auto max-w-full object-contain" decoding="async" onError={() => setLogoOk(false)} />
+            </span>
+          ) : (
+            <>
+              <span className="h-3 w-3 shrink-0 rounded-full bg-accent" aria-hidden />
+              <span className="truncate" data-testid="store-name">
+                {storeName ?? "線上取號"}
+              </span>
+            </>
+          )}
         </span>
         {step && <span className="shrink-0 text-sm text-white/80">步驟 {step} / 3</span>}
       </header>
@@ -12,7 +27,6 @@ export function Shell({ children, storeName, step }: { children: React.ReactNode
     </div>
   );
 }
-
 export function Notice({ title, text }: { title: string; text: string }) {
   return (
     <div className="mt-10 rounded-2xl bg-white p-6 text-center shadow-sm ring-1 ring-slate-200" role="status">

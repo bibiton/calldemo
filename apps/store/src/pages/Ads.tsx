@@ -1,5 +1,5 @@
 /** 廣告管理（05-apps §4）：上傳、排序、秒數、時段／星期／日期、啟停、容量用量條。 */
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api } from "../lib/api";
 import { inspect, mb, upload, type Inspected } from "../lib/upload";
 import { Badge, Button, Card, Confirm, Empty, ErrorBox, Field, inputCls, Loading, Page, Sheet, Toggle, errText, revealError, toast, useLoad } from "../ui";
@@ -15,6 +15,8 @@ interface Item {
   videoMs: number | null;
   imageMs: number | null;
   enabled: boolean;
+  /** 顯示於顧客手機（ADR-048，只限圖片） */
+  showOnCustomer: boolean;
   activeFrom: string | null;
   activeTo: string | null;
   dows: number[];
@@ -110,6 +112,7 @@ export function Ads() {
             <p className="mt-2 text-sm text-slate-500">建議尺寸 1080×720（3:2）。圖片 ≤ 5 MB；影片 MP4 ≤ 50 MB、≤ 120 秒。</p>
           </Card>
           {data.items.length === 0 && <Empty title="還沒有廣告" text="上傳後面板會自動輪播；沒有廣告時面板顯示門店名稱。" />}
+          {data.items.length > 0 && <PhonePreview items={data.items.filter((x) => x.kind === "image" && x.enabled && x.showOnCustomer)} />}
           {data.items.map((it, i) => (
             <Card key={it.itemId} className={`!p-3 ${it.enabled ? "" : "opacity-70"}`} testId="ad-item">
               <div className="flex gap-3">
@@ -129,7 +132,10 @@ export function Ads() {
                     {it.kind === "image" ? `${Math.round((it.imageMs ?? 8000) / 1000)} 秒` : `影片 ${Math.round((it.videoMs ?? 0) / 1000)} 秒`} · {mb(it.bytes)}
                   </p>
                   <p className="text-sm text-slate-500">{schedule(it)}</p>
-                  {!it.enabled && <Badge>已停用</Badge>}
+                  <span className="flex flex-wrap gap-1">
+                    {!it.enabled && <Badge>已停用</Badge>}
+                    {it.showOnCustomer && <Badge tone="green">顧客手機</Badge>}
+                  </span>
                 </div>
               </div>
               <div className="mt-2 flex items-center gap-1">
@@ -257,6 +263,7 @@ function EditSheet({ it, onClose, onSaved }: { it: Item; onClose: () => void; on
   const [v, setV] = useState({
     imageMs: String(Math.round((it.imageMs ?? 8000) / 1000)),
     enabled: it.enabled,
+    showOnCustomer: it.showOnCustomer,
     allDay: !it.activeFrom && !it.activeTo,
     activeFrom: it.activeFrom ?? "11:00",
     activeTo: it.activeTo ?? "14:00",
@@ -285,6 +292,7 @@ function EditSheet({ it, onClose, onSaved }: { it: Item; onClose: () => void; on
         json: {
           imageMs: it.kind === "image" ? Number(v.imageMs) * 1000 : null,
           enabled: v.enabled,
+          ...(it.kind === "image" ? { showOnCustomer: v.showOnCustomer } : {}),
           activeFrom: v.allDay ? null : v.activeFrom,
           activeTo: v.allDay ? null : v.activeTo,
           dows: v.dows,
@@ -311,6 +319,17 @@ function EditSheet({ it, onClose, onSaved }: { it: Item; onClose: () => void; on
         <span className="text-base font-bold">播放</span>
         <Toggle checked={v.enabled} onChange={(x) => setV({ ...v, enabled: x })} label="播放" />
       </div>
+      {it.kind === "image" ? (
+        <div className="flex items-center justify-between gap-3 rounded-xl bg-slate-50 px-3 py-1">
+          <span className="min-w-0">
+            <span className="block text-base font-bold">顯示於顧客手機</span>
+            <span className="block text-sm text-slate-500">顧客取號頁與號碼頁輪播（依下方時段）</span>
+          </span>
+          <Toggle checked={v.showOnCustomer} onChange={(x) => setV({ ...v, showOnCustomer: x })} label="顯示於顧客手機" testId="show-on-customer" />
+        </div>
+      ) : (
+        <p className="rounded-xl bg-slate-50 px-3 py-2 text-sm text-slate-600">影片只在叫號面板播放，不會出現在顧客手機（節省顧客流量）。</p>
+      )}
       <div className="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-1">
         <span className="text-base font-bold">全天播放</span>
         <Toggle checked={v.allDay} onChange={(x) => setV({ ...v, allDay: x })} label="全天播放" testId="ad-allday" />
@@ -359,5 +378,38 @@ function EditSheet({ it, onClose, onSaved }: { it: Item; onClose: () => void; on
         </p>
       )}
     </Sheet>
+  );
+}
+
+/** 顧客手機預覽：勾選「顯示於顧客手機」且啟用中的圖片，以手機外框輪播（與顧客頁相同 3:2、5 秒）。 */
+function PhonePreview({ items }: { items: Item[] }) {
+  const [i, setI] = useState(0);
+  useEffect(() => {
+    if (items.length < 2) return;
+    const h = setInterval(() => setI((x) => (x + 1) % items.length), 5000);
+    return () => clearInterval(h);
+  }, [items.length]);
+  return (
+    <Card testId="phone-preview">
+      <p className="text-base font-bold">顧客手機預覽</p>
+      {items.length === 0 ? (
+        <p className="mt-1 text-sm text-slate-500">在圖片的「設定」開啟「顯示於顧客手機」，顧客取號頁與號碼頁就會輪播這些圖片。</p>
+      ) : (
+        <div className="mt-3 flex items-center gap-4">
+          <div className="w-32 shrink-0 rounded-[1.25rem] bg-slate-900 p-1.5 shadow" aria-hidden>
+            <div className="overflow-hidden rounded-2xl bg-[#f4f6fa]">
+              <div className="h-4 bg-brand" />
+              <div className="mx-2 mt-2 rounded-lg bg-white py-2 text-center text-[10px] font-black text-brand">A012</div>
+              <div className="relative mx-2 my-2 aspect-[3/2] overflow-hidden rounded-md bg-slate-100">
+                <img src={items[i % items.length].url} alt="" className="h-full w-full object-contain" />
+              </div>
+            </div>
+          </div>
+          <p className="min-w-0 text-sm text-slate-600">
+            {items.length} 張圖片輪播中（每 5 秒）。只放圖片、不放影片；依各自的播放時段顯示。
+          </p>
+        </div>
+      )}
+    </Card>
   );
 }

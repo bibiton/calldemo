@@ -5,6 +5,7 @@ import { wsUrl } from "./lib/env";
 import { ring, vibrate } from "./lib/alerts";
 import { isIos, isStandalone, pushSupported, requestSubscription, saveSubscription, type PushState } from "./lib/push";
 import { Shell } from "./Shell";
+import { ImageCarousel } from "./ImageCarousel";
 import { pushFlag, type Saved, type Ticket } from "./saved";
 
 const ENDED = ["done", "no_show", "cancelled"];
@@ -29,6 +30,11 @@ export function TicketPage({
   const [confirmCancel, setConfirmCancel] = useState(false);
   const [push, setPush] = useState<PushState>(() => (pushFlag.get(saved.ticketId) ? "on" : pendingPush ? "pending" : "off"));
   const sockRef = useRef<QcsSocket | null>(null);
+
+  // 從表單（小螢幕要捲動）進來時回到頂端：號碼與前面幾位一定在首屏
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
 
   useEffect(() => {
     if (!pendingPush) return;
@@ -101,7 +107,7 @@ export function TicketPage({
   const called = t.status === "called" || t.status === "serving";
   const showAlert = called && dismissed !== t.recallCount;
   return (
-    <Shell storeName={saved.store.name} step={ended ? undefined : 3}>
+    <Shell storeName={saved.store.name} logoUrl={saved.store.logoUrl} step={ended ? undefined : 3}>
       {existing && (
         <p className="mb-3 rounded-xl bg-amber-50 p-3 text-base text-amber-900" role="status">
           您已有號碼，以下是您原本的號碼。
@@ -128,6 +134,7 @@ export function TicketPage({
           {t.status === "cancelled" && <p>號碼已取消</p>}
         </div>
       </section>
+      {t.status === "waiting" && !!saved.store.images?.length && <ImageCarousel images={saved.store.images} />}
 
       {!ended && <NotifyCard saved={saved} push={push} conn={conn} onEnable={() => void enablePush()} />}
 

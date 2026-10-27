@@ -110,7 +110,7 @@ for (const s of stores) {
       business_hours: JSON.stringify(s.hours),
       qr_key_version: 1,
       voice_settings: JSON.stringify(s.voice),
-      logo_r2_key: null,
+      logo_r2_key: s.id === "st_demo_zs" ? "demo-ads/logo.svg" : null, // 顧客頁頁首 Logo（ADR-048）
       created_at: now,
       updated_at: now,
     }),
@@ -173,7 +173,9 @@ for (const s of stores) {
   assets.forEach(([file, kind, mime], i) => {
     const id = `${s.id}_ad${i + 1}`;
     sql.push(row("ad_assets", { id, owner_type: "store", owner_id: s.id, kind, r2_key: `demo-ads/${file}`, sha256: `demo-${file}`, mime, bytes: s.adBytes ?? 1000, width: 1080, height: 720, duration_ms: kind === "video" ? 8000 : null, status: "ready", created_by: null, created_at: now }));
-    sql.push(row("ad_playlist_items", { id: `${s.id}_it${i + 1}`, playlist_id: `${s.id}_pl`, asset_id: id, sort_order: i, duration_ms: kind === "image" ? 6000 : null, active_from: null, active_to: null, active_dows: "[0,1,2,3,4,5,6]", start_date: null, end_date: null, enabled: 1 }));
+    // 中山店前 3 張圖片「顯示於顧客手機」（ADR-048）
+    const onCustomer = s.id === "st_demo_zs" && kind === "image" && ["ad1.svg", "ad2.svg", "ad3.svg"].includes(file) ? 1 : 0;
+    sql.push(row("ad_playlist_items", { id: `${s.id}_it${i + 1}`, playlist_id: `${s.id}_pl`, asset_id: id, sort_order: i, duration_ms: kind === "image" ? 6000 : null, active_from: null, active_to: null, active_dows: "[0,1,2,3,4,5,6]", start_date: null, end_date: null, enabled: 1, show_on_customer: onCustomer }));
   });
 
   if (s.id === "st_demo_zs") sql.push(...demoHistory(s.id));

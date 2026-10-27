@@ -1,4 +1,4 @@
-import { b64encode, deriveStoreKey, type StoreInfo } from "@qcs/shared";
+import { b64encode, businessDate, dayOfWeek, deriveStoreKey, localMinutes, type StoreInfo } from "@qcs/shared";
 import type { Env } from "../env";
 import type { License, StoreCtx } from "../do/store-queue";
 
@@ -11,6 +11,31 @@ export interface StoreRecord {
   maxStaff: number;
   adQuotaBytes: number;
   v: number;
+  /** 顧客手機圖片（ADR-048）：隨門店資料快取（isolate 60 秒＋KV），顧客請求不另讀 D1；時段在請求時判斷 */
+  customerImages?: CustomerImage[];
+}
+
+export interface CustomerImage {
+  url: string;
+  from: string | null;
+  to: string | null;
+  dows: number[];
+  sd: string | null;
+  ed: string | null;
+}
+
+export const MAX_CUSTOMER_IMAGES = 6;
+
+/** 現在（門店時區）該顯示的顧客圖片網址。 */
+export function customerImages(rec: StoreRecord, now: number): string[] {
+  const tz = rec.store.timezone;
+  const date = businessDate(now, tz);
+  const dow = dayOfWeek(date);
+  const min = localMinutes(now, tz);
+  const hm = `${String(Math.floor(min / 60)).padStart(2, "0")}:${String(min % 60).padStart(2, "0")}`;
+  return (rec.customerImages ?? [])
+    .filter((i) => i.dows.includes(dow) && (!i.sd || date >= i.sd) && (!i.ed || date <= i.ed) && (!i.from || hm >= i.from) && (!i.to || hm < i.to))
+    .map((i) => i.url);
 }
 
 const TTL_MS = 60_000;
@@ -58,10 +83,16 @@ export async function storeIdByCode(env: Env, code: string, now = Date.now()): P
 }
 
 async function readStoreFromD1(env: Env, storeId: string): Promise<StoreRecord | null> {
-  const [s, svcs, ctrs] = await env.DB.batch([
+  const [s, svcs, ctrs, imgs] = await env.DB.batch([
     env.DB.prepare("SELECT * FROM stores WHERE id=?").bind(storeId),
     env.DB.prepare("SELECT id,name,prefix,sort_order,daily_limit FROM services WHERE store_id=? AND enabled=1 ORDER BY sort_order, prefix").bind(storeId),
     env.DB.prepare("SELECT id,name,number,service_ids FROM counters WHERE store_id=? AND enabled=1 ORDER BY number").bind(storeId),
+    env.DB.prepare(
+      `SELECT a.r2_key, i.active_from, i.active_to, i.active_dows, i.start_date, i.end_date FROM ad_playlist_items i
+       JOIN ad_playlists p ON p.id=i.playlist_id JOIN ad_assets a ON a.id=i.asset_id
+       WHERE p.owner_type='store' AND p.owner_id=? AND i.enabled=1 AND i.show_on_customer=1 AND a.kind='image' AND a.status='ready'
+       ORDER BY i.sort_order, i.id LIMIT ${MAX_CUSTOMER_IMAGES}`,
+    ).bind(storeId),
   ]);
   const row = s.results[0] as any;
   if (!row) return null;
@@ -92,6 +123,14 @@ async function readStoreFromD1(env: Env, storeId: string): Promise<StoreRecord |
     maxStaff: row.max_staff,
     adQuotaBytes: row.ad_quota_bytes,
     v: row.updated_at,
+    customerImages: (imgs.results as any[]).map((x) => ({
+      url: `${env.MEDIA_BASE}/${x.r2_key}`,
+      from: x.active_from,
+      to: x.active_to,
+      dows: parse(x.active_dows, [0, 1, 2, 3, 4, 5, 6]),
+      sd: x.start_date,
+      ed: x.end_date,
+    })),
   };
 }
 
