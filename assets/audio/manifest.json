@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-27T04:01:12+00:00",
+  "generatedAt": "2026-10-27T04:19:49+00:00",
   "voice": {
     "name": "zh-TW-HsiaoChenNeural",
     "rate": "+6%",
@@ -16,8 +16,8 @@
     "note": "MP3 是所有瀏覽器（含 iOS Safari、舊版電視盒 WebView）都能 decodeAudioData 的格式"
   },
   "totals": {
-    "files": 95,
-    "bytes": 680980,
+    "files": 7114,
+    "bytes": 38885432,
     "byCategory": {
       "chime": {
         "files": 3,
@@ -28,8 +28,8 @@
         "bytes": 415360
       },
       "number": {
-        "files": 0,
-        "bytes": 0
+        "files": 7019,
+        "bytes": 38204452
       },
       "phrase": {
         "files": 36,
@@ -1463,6 +1463,240 @@
       "subtype": "counter",
       "durationSec": 1.485,
       "bytes": 6380
+    },
+    {
+      "key": "letter.A",
+      "text": "A",
+      "file": "letter/A.mp3",
+      "category": "number",
+      "subtype": "letter",
+      "durationSec": 0.268,
+      "bytes": 1580
+    },
+    {
+      "key": "letter.B",
+      "text": "B",
+      "file": "letter/B.mp3",
+      "category": "number",
+      "subtype": "letter",
+      "durationSec": 0.261,
+      "bytes": 1484
+    },
+    {
+      "key": "letter.C",
+      "text": "C",
+      "file": "letter/C.mp3",
+      "category": "number",
+      "subtype": "letter",
+      "durationSec": 0.338,
+      "bytes": 1868
+    },
+    {
+      "key": "letter.D",
+      "text": "D",
+      "file": "letter/D.mp3",
+      "category": "number",
+      "subtype": "letter",
+      "durationSec": 0.252,
+      "bytes": 1484
+    },
+    {
+      "key": "letter.E",
+      "text": "E",
+      "file": "letter/E.mp3",
+      "category": "number",
+      "subtype": "letter",
+      "durationSec": 0.229,
+      "bytes": 1388
+    },
+    {
+      "key": "letter.F",
+      "text": "F",
+      "file": "letter/F.mp3",
+      "category": "number",
+      "subtype": "letter",
+      "durationSec": 0.253,
+      "bytes": 1484
+    },
+    {
+      "key": "letter.G",
+      "text": "G",
+      "file": "letter/G.mp3",
+      "category": "number",
+      "subtype": "letter",
+      "durationSec": 0.297,
+      "bytes": 1676
+    },
+    {
+      "key": "letter.H",
+      "text": "H",
+      "file": "letter/H.mp3",
+      "category": "number",
+      "subtype": "letter",
+      "durationSec": 0.377,
+      "bytes": 1964
+    },
+    {
+      "key": "letter.I",
+      "text": "I",
+      "file": "letter/I.mp3",
+      "category": "number",
+      "subtype": "letter",
+      "durationSec": 0.277,
+      "bytes": 1580
+    },
+    {
+      "key": "letter.J",
+      "text": "J",
+      "file": "letter/J.mp3",
+      "category": "number",
+      "subtype": "letter",
+      "durationSec": 0.32,
+      "bytes": 1772
+    },
+    {
+      "key": "letter.K",
+      "text": "K",
+      "file": "letter/K.mp3",
+      "category": "number",
+      "subtype": "letter",
+      "durationSec": 0.338,
+      "bytes": 1868
+    },
+    {
+      "key": "letter.L",
+      "text": "L",
+      "file": "letter/L.mp3",
+      "category": "number",
+      "subtype": "letter",
+      "durationSec": 0.279,
+      "bytes": 1580
+    },
+    {
+      "key": "letter.M",
+      "text": "M",
+      "file": "letter/M.mp3",
+      "category": "number",
+      "subtype": "letter",
+      "durationSec": 0.284,
+      "bytes": 1580
+    },
+    {
+      "key": "letter.N",
+      "text": "N",
+      "file": "letter/N.mp3",
+      "category": "number",
+      "subtype": "letter",
+      "durationSec": 0.287,
+      "bytes": 1580
+    },
+    {
+      "key": "letter.O",
+      "text": "O",
+      "file": "letter/O.mp3",
+      "category": "number",
+      "subtype": "letter",
+      "durationSec": 0.242,
+      "bytes": 1484
+    },
+    {
+      "key": "letter.P",
+      "text": "P",
+      "file": "letter/P.mp3",
+      "category": "number",
+      "subtype": "letter",
+      "durationSec": 0.293,
+      "bytes": 1676
+    },
+    {
+      "key": "letter.Q",
+      "text": "Q",
+      "file": "letter/Q.mp3",
+      "category": "number",
+      "subtype": "letter",
+      "durationSec": 0.345,
+      "bytes": 1868
+    },
+    {
+      "key": "letter.R",
+      "text": "R",
+      "file": "letter/R.mp3",
+      "category": "number",
+      "subtype": "letter",
+      "durationSec": 0.236,
+      "bytes": 1388
+    },
+    {
+      "key": "letter.S",
+      "text": "S",
+      "file": "letter/S.mp3",
+      "category": "number",
+      "subtype": "letter",
+      "durationSec": 0.318,
+      "bytes": 1772
+    },
+    {
+      "key": "letter.T",
+      "text": "T",
+      "file": "letter/T.mp3",
+      "category": "number",
+      "subtype": "letter",
+      "durationSec": 0.331,
+      "bytes": 1772
+    },
+    {
+      "key": "letter.U",
+      "text": "U",
+      "file": "letter/U.mp3",
+      "category": "number",
+      "subtype": "letter",
+      "durationSec": 0.277,
+      "bytes": 1580
+    },
+    {
+      "key": "letter.V",
+      "text": "V",
+      "file": "letter/V.mp3",
+      "category": "number",
+      "subtype": "letter",
+      "durationSec": 0.315,
+      "bytes": 1772
+    },
+    {
+      "key": "letter.W",
+      "text": "W",
+      "file": "letter/W.mp3",
+      "category": "number",
+      "subtype": "letter",
+      "durationSec": 0.474,
+      "bytes": 2348
+    },
+    {
+      "key": "letter.X",
+      "text": "X",
+      "file": "letter/X.mp3",
+      "category": "number",
+      "subtype": "letter",
+      "durationSec": 0.352,
+      "bytes": 1868
+    },
+    {
+      "key": "letter.Y",
+      "text": "Y",
+      "file": "letter/Y.mp3",
+      "category": "number",
+      "subtype": "letter",
+      "durationSec": 0.33,
+      "bytes": 1772
+    },
+    {
+      "key": "letter.Z",
+      "text": "Z",
+      "file": "letter/Z.mp3",
+      "category": "number",
+      "subtype": "letter",
+      "durationSec": 0.339,
+      "bytes": 1868
     }
   ]
 }
