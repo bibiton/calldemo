@@ -12,6 +12,7 @@ export const VERSION = "0.1.0";
 const SESSION_TTL_S = 10 * 60;
 const TICKET_TTL_S = 24 * 3600;
 const STAFF_TTL_S = 12 * 3600;
+const XFER_TTL_MS = 10 * 60_000;
 const LOCK_AFTER = 5;
 const LOCK_MS = 15 * 60_000;
 
@@ -152,6 +153,40 @@ export function createApp(deps: AppDeps = {}) {
        ON CONFLICT(ticket_id) DO UPDATE SET endpoint=excluded.endpoint, p256dh=excluded.p256dh, auth=excluded.auth`,
     ).bind(t.sub, t.store_id, sub.endpoint, sub.p256dh, sub.auth, now()).run();
     return c.json({ ok: true });
+  });
+
+  // iOS 加入主畫面轉交碼（07 §3、ADR-034）：6 位數、10 分鐘、單次使用；D1 只存 ticket_id
+  app.post("/api/tickets/:id/transfer", async (c) => {
+    const t = await verifyTicketToken(c.env, bearer(c.req.header("authorization")), now());
+    if (!t) return err(c, 401, "TOKEN_INVALID");
+    if (t.sub !== c.req.param("id")) return err(c, 403, "FORBIDDEN");
+    const exp = now() + XFER_TTL_MS;
+    for (let i = 0; i < 5; i++) {
+      const code = String(crypto.getRandomValues(new Uint32Array(1))[0] % 1_000_000).padStart(6, "0");
+      const r = await c.env.DB.prepare(
+        "INSERT INTO transfer_codes(code,store_id,ticket_id,expires_at,created_at) VALUES(?,?,?,?,?) ON CONFLICT(code) DO UPDATE SET store_id=excluded.store_id, ticket_id=excluded.ticket_id, expires_at=excluded.expires_at, created_at=excluded.created_at WHERE transfer_codes.expires_at < ?",
+      ).bind(code, t.store_id, t.sub, exp, now(), now()).run();
+      if (r.meta.changes) return c.json({ code, expiresAt: exp });
+    }
+    return err(c, 503, "TRY_AGAIN");
+  });
+
+  app.post("/api/transfer/redeem", async (c) => {
+    const body = await c.req.json().catch(() => null);
+    const code = String(body?.code ?? "");
+    if (!/^\d{6}$/.test(code)) return err(c, 422, "CODE_FORMAT");
+    const row = await c.env.DB.prepare("DELETE FROM transfer_codes WHERE code=? RETURNING store_id, ticket_id, expires_at").bind(code).first<{
+      store_id: string;
+      ticket_id: string;
+      expires_at: number;
+    }>();
+    if (!row || row.expires_at < now()) return err(c, 404, "CODE_NOT_FOUND");
+    const rec = await storeOr(c, row.store_id);
+    if (rec instanceof Response) return rec;
+    const ticket = await stub(c, row.store_id).ticketView(await toCtx(c.env, rec, false), row.ticket_id);
+    if (!ticket || !["waiting", "called", "serving", "skipped"].includes(ticket.status)) return err(c, 409, "TICKET_ENDED");
+    const ticketToken = await signJwt(c.env.JWT_SECRET, { sub: row.ticket_id, role: "customer", store_id: row.store_id, exp: Math.floor(now() / 1000) + TICKET_TTL_S });
+    return c.json({ ticketToken, ticket, store: { id: rec.store.id, code: rec.store.code, name: rec.store.name, logoUrl: rec.store.logoUrl }, push: pushInfo(c, rec) });
   });
 
   // ---------- 人員（ADR-004：裝置綁店＋PIN）----------

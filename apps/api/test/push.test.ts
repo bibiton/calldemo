@@ -311,3 +311,56 @@ describe("q-push consumer（createMessageBatch）", () => {
     expect(peak).toBeGreaterThan(1);
   });
 });
+
+describe("iOS 主畫面轉交碼（07 §3）", () => {
+  const app = createApp();
+  async function ticket() {
+    const s = await seedStore();
+    const key = await deriveStoreKey(env.QR_ROOT_SECRET, s.storeId, 1);
+    const w = qrWindow(Date.now());
+    const sess: any = await (await app.request(`/api/s/${s.code}/session?w=${w}&k=${await computeQrToken(key, s.storeId, w)}`, {}, env)).json();
+    const r: any = await (
+      await app.request(
+        `/api/s/${s.code}/tickets`,
+        { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ session: sess.sessionToken, serviceId: `${s.storeId}_A`, name: "林小華", phone: "0922333444", consent: true }) },
+        env,
+      )
+    ).json();
+    return { s, ticket: r.ticket, token: r.ticketToken as string };
+  }
+  const mk = (token: string, id: string, a = app) => a.request(`/api/tickets/${id}/transfer`, { method: "POST", headers: { authorization: `Bearer ${token}` } }, env);
+  const redeem = (code: string, a = app) =>
+    a.request(`/api/transfer/redeem`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ code }) }, env);
+
+  it("產生 6 位數字轉交碼；兌換後拿到可用的 ticket token 與號碼；同一碼只能用一次", async () => {
+    const { ticket: t, token } = await ticket();
+    const r = await mk(token, t.id);
+    expect(r.status).toBe(200);
+    const { code, expiresAt } = (await r.json()) as any;
+    expect(code).toMatch(/^\d{6}$/);
+    expect(expiresAt - Date.now()).toBeLessThanOrEqual(10 * 60_000);
+    const ok = await redeem(code);
+    expect(ok.status).toBe(200);
+    const body: any = await ok.json();
+    expect(body.ticket.number).toBe("A001");
+    const me = await app.request("/api/tickets/me", { headers: { authorization: `Bearer ${body.ticketToken}` } }, env);
+    expect(((await me.json()) as any).ticket.id).toBe(t.id);
+    expect((await redeem(code)).status).toBe(404);
+  });
+
+  it("過期（> 10 分鐘）→ 404；格式錯 → 422；別人的號碼不能產生 → 403", async () => {
+    const { ticket: t, token } = await ticket();
+    const code = ((await (await mk(token, t.id)).json()) as any).code;
+    const later = createApp({ now: () => Date.now() + 11 * 60_000 });
+    expect((await redeem(code, later)).status).toBe(404);
+    expect((await redeem("12ab")).status).toBe(422);
+    expect((await mk(token, "someone_else")).status).toBe(403);
+  });
+
+  it("號碼已結束 → 兌換 409，不發 token", async () => {
+    const { ticket: t, token } = await ticket();
+    const code = ((await (await mk(token, t.id)).json()) as any).code;
+    await app.request(`/api/tickets/${t.id}/cancel`, { method: "POST", headers: { authorization: `Bearer ${token}` } }, env);
+    expect((await redeem(code)).status).toBe(409);
+  });
+});
