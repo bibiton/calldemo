@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { QcsSocket, ulid, type CounterInfo, type ServiceInfo, type StaffTicket } from "@qcs/shared";
+import { QcsSocket, queueOrder, ulid, type CounterInfo, type ServiceInfo, type StaffTicket } from "@qcs/shared";
 import { api, ApiError } from "./lib/api";
 import { decodeJwt, store, wsUrl } from "./lib/env";
 import { StaffPair } from "./Pair";
@@ -303,7 +303,7 @@ function Desk({
 
   const list = useMemo(() => [...tickets.values()], [tickets]);
   const allowed = counter.serviceIds.length ? counter.serviceIds : info.services.map((s) => s.id);
-  const waiting = list.filter((t) => t.status === "waiting").sort((a, b) => a.createdAt - b.createdAt);
+  const waiting = list.filter((t) => t.status === "waiting").sort(queueOrder);
   const skipped = list.filter((t) => t.status === "skipped");
   const current = list
     .filter((t) => (t.status === "called" || t.status === "serving") && t.counterId === counter.id)

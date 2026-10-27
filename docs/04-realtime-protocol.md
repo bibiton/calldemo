@@ -92,6 +92,25 @@ pair[1].serializeAttachment({ role, deviceId, staffId, ticketId, counterId }); /
 - `cmdId` 由客戶端產生（ULID）。DO 先查 `cmd_dedup`：已處理 → 直接回原結果。網路重送不會叫兩次號。
 - `cmd_dedup` 寫入與狀態變更在**同一個交易**。
 
+## 3.5 排隊順序規則（ADR-042）
+
+DO 是單執行緒：同一家店的取號、叫號、重排一定是一件接一件處理，所以「同一毫秒」也有明確的先後。
+
+| 規則 | 說明 |
+|---|---|
+| 排序鍵 | 等候中號碼一律依 **`(sort_key, ord)`** 由小到大：`callNext`、「前面還有幾位」（顧客頁／推播）、人員端與門店後台等候清單**全部用同一個鍵** |
+| `sort_key` | 取號時＝取號時間（ms）；隊尾重排＝重排當下時間；原位重排＝原取號時間 |
+| `ord` | DO 內單調遞增的**入隊序號**（計數放在每次交易本來就要寫的 `meta.state` 列，零額外寫入）。取號時配發；**隊尾重排時重新配發**（等同此刻才入隊）；原位重排、轉櫃台保留原值 |
+| 同一毫秒取號 | `sort_key` 相同 → 先被 DO 處理的 `ord` 較小、排在前面；號碼也是同一順序配發，所以叫號順序＝號碼遞增 |
+| 隊尾重排 vs 同毫秒新取號 | 先發生者在前：重排前已取號者排在重排號碼之前，重排後才取號者排在之後 |
+| 原位重排 | 回到原取號位置（原 `sort_key`、原 `ord`），即使與他人同一毫秒取號 |
+| 重叫（recall） | 號碼不在等候中，不影響任何人的位置；只更新 `called_at` 與叫號序號 `call_seq` → 面板「近期叫號」排最前 |
+| 近期叫號／櫃台目前號碼 | 依 `(called_at, call_seq)` 由新到舊；同一毫秒兩櫃台叫號時，後處理者在前 |
+| 跨服務類別 | 專屬某類別的櫃台只叫該類別；服務全部類別的櫃台依 `(sort_key, ord)` 跨類別取最前者；「前面幾位」只算同類別 |
+| 禁止 | 以 `rowid`（`VACUUM` 可能重編沒有 INTEGER PRIMARY KEY 的表）、號碼字串、`createdAt` 或只用 `sort_key` 排序。前端用 `@qcs/shared` 的 `queueOrder` |
+
+測試：`apps/api/test/queue-order.test.ts`（含原始碼靜態檢查）、`packages/shared/test/queue-order.test.ts`。
+
 ## 4. seq、補推、去重
 
 - 每個會改變狀態的事件分配 `seq = meta.seq + 1`，與狀態變更、`events` 插入在同一交易內完成。

@@ -157,7 +157,7 @@ describe("T6 關店 Alarm", () => {
   });
 });
 
-describe("同一毫秒取號的先後（sort_key 相同時以插入順序）", () => {
+describe("同一毫秒取號的先後（sort_key 相同時以入隊序號 ord，ADR-042）", () => {
   it("時鐘固定：前面人數依序 0、1、2，叫號也依取號順序", async () => {
     const id = uniq();
     const T = Date.now();

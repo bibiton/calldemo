@@ -72,6 +72,14 @@ export interface StaffTicket extends PublicTicket {
   createdAt: number;
   source: "qr" | "staff";
   transferCount: number;
+  /** 排隊排序鍵（ADR-042）：等候清單一律依 (sortKey, ord) 排，不可用 createdAt 或號碼 */
+  sortKey: number;
+  ord: number;
+}
+
+/** 等候隊列的排序（與 DO 的 ORDER BY sort_key, ord 一致，ADR-042）。 */
+export function queueOrder(a: Pick<StaffTicket, "sortKey" | "ord">, b: Pick<StaffTicket, "sortKey" | "ord">): number {
+  return a.sortKey - b.sortKey || a.ord - b.ord;
 }
 
 export interface Snapshot {

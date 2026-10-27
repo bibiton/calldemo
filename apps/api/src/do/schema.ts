@@ -1,5 +1,5 @@
 /**
- * DO SQLite schema（03-data-model §3）。以 PRAGMA user_version 向前遷移；只加不刪。
+ * DO SQLite schema（03-data-model §3）。以 meta.schema_version 向前遷移；只加不刪（索引可替換）。
  * 與文件差異：tickets 多 sort_key（requeue 排隊尾／原位）、多 audit_buffer（pii.reveal、裝置音訊狀態等
  * 併入 q-history 批次送 D1，06-auth §6）。見 DECISIONS ADR-029。
  */
@@ -44,4 +44,14 @@ CREATE TABLE IF NOT EXISTS audit_buffer (id TEXT PRIMARY KEY, at INTEGER NOT NUL
 `,
   // v2（M2）：推播「快輪到您了」只送一次
   `ALTER TABLE tickets ADD COLUMN push_soon_sent INTEGER NOT NULL DEFAULT 0;`,
+  // v3（ADR-042）：排隊順序鍵 (sort_key, ord)；不依賴 rowid（VACUUM 可能重編沒有 INTEGER PRIMARY KEY 的表的 rowid）。
+  // ord＝入隊序號、call_seq＝叫號序號，皆由 state 列內的單調計數配發（零額外寫入列）。既有列以目前 rowid 回填一次。
+  // 索引改為含 ord（取代 t_active，不增加索引數 → 不增加 rows written）。
+  `
+ALTER TABLE tickets ADD COLUMN ord INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE tickets ADD COLUMN call_seq INTEGER NOT NULL DEFAULT 0;
+UPDATE tickets SET ord = rowid;
+DROP INDEX IF EXISTS t_active;
+CREATE INDEX IF NOT EXISTS t_queue ON tickets(status, service_id, sort_key, ord);
+`,
 ];

@@ -1,6 +1,6 @@
 /** 即時隊列（05-apps §4）：各類別等候數、各櫃台目前號碼、可代操作（同人員端指令，走既有 WS、cmdId 冪等）。 */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { QcsSocket, ulid, type StaffTicket } from "@qcs/shared";
+import { QcsSocket, queueOrder, ulid, type StaffTicket } from "@qcs/shared";
 import { api, auth, freshToken } from "../lib/api";
 import { wsUrl } from "../lib/env";
 import { useMe } from "../lib/me";
@@ -105,7 +105,7 @@ export function Board() {
 
   const { services, counters } = me.data.store;
   const svc = (id: string) => services.find((s) => s.id === id);
-  const queue = list.filter((t) => t.status === "waiting").sort((a, b) => a.createdAt - b.createdAt);
+  const queue = list.filter((t) => t.status === "waiting").sort(queueOrder);
   const skipped = list.filter((t) => t.status === "skipped");
   const blocked = [...devAudio.entries()].filter(([, a]) => a === "blocked").map(([id]) => devNames[id] ?? "叫號面板");
   const offline = conn !== "open";

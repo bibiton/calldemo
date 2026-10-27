@@ -81,6 +81,10 @@ interface Row {
   push_soon_sent: number;
   source: "qr" | "staff";
   sort_key: number;
+  /** 入隊序號（ADR-042）：取號時配發，隊尾重排時重新配發；排序鍵 (sort_key, ord) */
+  ord: number;
+  /** 叫號序號：叫號／重叫時配發；同一毫秒的叫號以此決定先後 */
+  call_seq: number;
   created_at: number;
   called_at: number | null;
   serving_at: number | null;
@@ -106,6 +110,8 @@ interface Usage {
 }
 interface State {
   seq: number;
+  /** ord／call_seq 的單調計數（ADR-042）；跟 seq 同一列，每次交易本來就要寫 */
+  ord: number;
   u: Usage;
   uh: Usage[];
 }
@@ -187,7 +193,11 @@ export class StoreQueueDO extends DurableObject<Env> {
 
   private load(): void {
     const s = this.metaGet("state");
-    this.state = s ? JSON.parse(s) : { seq: 0, u: emptyUsage(this.hourKey()), uh: [] };
+    this.state = s ? JSON.parse(s) : { seq: 0, ord: 0, u: emptyUsage(this.hourKey()), uh: [] };
+    if (typeof this.state.ord !== "number") {
+      // schema v3 之前建立的 DO：從既有號碼接續（回填的 ord 不會大於目前最大值）
+      this.state.ord = this.sql.exec<{ m: number | null }>("SELECT max(max(ord), max(call_seq)) AS m FROM tickets").one().m ?? 0;
+    }
     const c = this.metaGet("config");
     if (c) {
       this.cfgJson = c;
@@ -277,6 +287,11 @@ export class StoreQueueDO extends DurableObject<Env> {
     }
   }
 
+  /** 下一個 ord／call_seq：只在交易內呼叫，隨 state 列落地（ADR-042）。 */
+  private nextOrd(): number {
+    return ++this.state.ord;
+  }
+
   private emit(type: string, data: any): Evt {
     const seq = ++this.state.seq;
     const at = this.now();
@@ -331,6 +346,8 @@ export class StoreQueueDO extends DurableObject<Env> {
       createdAt: r.created_at,
       source: r.source,
       transferCount: r.transfer_count,
+      sortKey: r.sort_key,
+      ord: r.ord,
     };
   }
 
@@ -357,18 +374,18 @@ export class StoreQueueDO extends DurableObject<Env> {
     const counters: Record<string, PublicTicket | null> = {};
     for (const c of this.cfg?.counters ?? []) {
       const r = this.sql
-        .exec<Row>("SELECT * FROM tickets WHERE counter_id=? AND status IN ('called','serving') ORDER BY called_at DESC LIMIT 1", c.id)
+        .exec<Row>("SELECT * FROM tickets WHERE counter_id=? AND status IN ('called','serving') ORDER BY called_at DESC, call_seq DESC LIMIT 1", c.id)
         .toArray();
       counters[c.id] = r.length ? this.pub(r[0]) : null;
     }
     const recent = this.sql
-      .exec<Row>("SELECT * FROM tickets WHERE called_at IS NOT NULL AND business_date=? ORDER BY called_at DESC LIMIT 10", bd)
+      .exec<Row>("SELECT * FROM tickets WHERE called_at IS NOT NULL AND business_date=? ORDER BY called_at DESC, call_seq DESC LIMIT 10", bd)
       .toArray()
       .map((r) => this.pub(r));
     const snap: Snapshot = { businessDate: bd, waiting: this.waitingCounts(), counters, recent, suspended: this.licenseError() };
     if (att.role === "staff") {
       const q = (where: string) =>
-        this.sql.exec<Row>(`SELECT * FROM tickets WHERE ${where} ORDER BY sort_key, rowid`).toArray().map((r) => this.staffView(r));
+        this.sql.exec<Row>(`SELECT * FROM tickets WHERE ${where} ORDER BY sort_key, ord`).toArray().map((r) => this.staffView(r));
       snap.staff = { waiting: q("status='waiting'"), active: q("status IN ('called','serving')"), skipped: q("status='skipped'") };
       // 目前連線中的面板與音訊狀態（門店後台／人員端一開就能看到「無法出聲」警示，不必等下一次狀態改變）
       snap.devices = this.ctx.getWebSockets("role:display").map((ws) => {
@@ -572,8 +589,8 @@ export class StoreQueueDO extends DurableObject<Env> {
     const no = this.nextNo(serviceId, bd);
     const id = ulid(now);
     this.sql.exec(
-      `INSERT INTO tickets(id,business_date,service_id,prefix,no,number,status,name,phone,phone_hmac,source,sort_key,created_at)
-       VALUES(?,?,?,?,?,?,'waiting',?,?,?,?,?,?)`,
+      `INSERT INTO tickets(id,business_date,service_id,prefix,no,number,status,name,phone,phone_hmac,source,sort_key,ord,created_at)
+       VALUES(?,?,?,?,?,?,'waiting',?,?,?,?,?,?,?)`,
       id,
       bd,
       serviceId,
@@ -585,6 +602,7 @@ export class StoreQueueDO extends DurableObject<Env> {
       hmac,
       source,
       now,
+      this.nextOrd(),
       now,
     );
     this.usage("tickets");
@@ -678,13 +696,13 @@ export class StoreQueueDO extends DurableObject<Env> {
   private aheadOf(r: Row): number {
     return this.sql
       .exec<{ n: number }>(
-        // 同一毫秒取號的 sort_key 相同 → 以插入順序（rowid）決定先後
+        // 排序鍵 (sort_key, ord)：同一毫秒取號以入隊序號決定先後（ADR-042）
         `SELECT count(*) AS n FROM tickets WHERE status='waiting' AND service_id=?
-         AND (sort_key < ? OR (sort_key = ? AND rowid < (SELECT rowid FROM tickets WHERE id=?)))`,
+         AND (sort_key < ? OR (sort_key = ? AND ord < ?))`,
         r.service_id,
         r.sort_key,
         r.sort_key,
-        r.id,
+        r.ord,
       )
       .one().n;
   }
@@ -879,7 +897,7 @@ export class StoreQueueDO extends DurableObject<Env> {
 
   private callTicket(r: Row, counterId: string, att: Attachment, events: Evt[]): Row {
     this.closeCounter(counterId, events);
-    const t = this.setStatus(r.id, "status='called', counter_id=?, staff_id=?, called_at=?, recall_count=0", counterId, att.staffId ?? null, this.now());
+    const t = this.setStatus(r.id, "status='called', counter_id=?, staff_id=?, called_at=?, call_seq=?, recall_count=0", counterId, att.staffId ?? null, this.now(), this.nextOrd());
     events.push(this.emit("ticket.called", this.pub(t)));
     this.usage("calls");
     return t;
@@ -900,7 +918,7 @@ export class StoreQueueDO extends DurableObject<Env> {
       const r = this.sql
         .exec<Row>(
           `SELECT * FROM tickets WHERE status='waiting' AND service_id IN (${svcs.map(() => "?").join(",")})
-           AND (counter_id IS NULL OR counter_id=?) ORDER BY sort_key, rowid LIMIT 1`,
+           AND (counter_id IS NULL OR counter_id=?) ORDER BY sort_key, ord LIMIT 1`,
           ...svcs,
           c.id,
         )
@@ -937,7 +955,7 @@ export class StoreQueueDO extends DurableObject<Env> {
       }
       case "recall": {
         if (!is("called")) return fail("BAD_STATE");
-        const t = this.setStatus(r.id, "recall_count=recall_count+1, called_at=?", now);
+        const t = this.setStatus(r.id, "recall_count=recall_count+1, called_at=?, call_seq=?", now, this.nextOrd());
         events.push(this.emit("ticket.called", this.pub(t)));
         this.usage("calls");
         return ok(t);
@@ -962,8 +980,11 @@ export class StoreQueueDO extends DurableObject<Env> {
       }
       case "requeue": {
         if (!is("skipped")) return fail("BAD_STATE");
-        const key = a.position === "original" ? r.created_at : now;
-        const t = this.setStatus(r.id, "status='waiting', counter_id=NULL, sort_key=?", key);
+        // 原位：回到取號時的 (sort_key, ord)；隊尾：等同「此刻才入隊」，重新配發 ord（同一毫秒也排在已入隊者之後，ADR-042）
+        const t =
+          a.position === "original"
+            ? this.setStatus(r.id, "status='waiting', counter_id=NULL, sort_key=?", r.created_at)
+            : this.setStatus(r.id, "status='waiting', counter_id=NULL, sort_key=?, ord=?", now, this.nextOrd());
         events.push(this.emit("ticket.requeued", this.pub(t)));
         return ok(t);
       }
