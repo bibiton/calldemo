@@ -244,6 +244,17 @@ CREATE INDEX idx_audit_at ON audit_logs(at);
 `usage_hourly`、`usage_daily`、`usage_monthly`、`billing_inputs` 在 migration `0004_usage.sql`（0002／0003 已用於 M2／M3，見下方「M2／M3 追加」），完整 SQL 見
 [12-usage-metering §3](12-usage-metering.md#3-資料表d1追加-migration-0002_usagesql)。皆不含個資。
 
+### M4 追加（`0004_m4_usage_admin.sql`、`0005_customer_images.sql`；DO schema v3）
+
+| 變更 | 用途 |
+|---|---|
+| `usage_hourly`、`usage_daily`、`usage_monthly`、`billing_inputs` | 計量與分攤（12 §3、§8） |
+| `stores.deleted_at` | 總後台刪除＝封存（ADR-043） |
+| `pin_failures(store_id, minute, n)` | 每店 PIN 失敗限流（ADR-046），保留 1 小時 |
+| `idx_audit_action_at` | 稽核依動作篩選 |
+| `ad_playlist_items.show_on_customer` | 顧客手機圖片（ADR-048） |
+| DO `tickets.ord`、`tickets.call_seq`；索引 `t_queue(status, service_id, sort_key, ord)` 取代 `t_active` | 排隊排序鍵（ADR-042）；計數放在既有 `meta.state` |
+
 ### M2／M3 追加（`0002_m2_push.sql`、`0003_m3_store_admin.sql`，皆只加欄位／加表）
 
 | 變更 | 用途 |

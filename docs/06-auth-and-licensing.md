@@ -25,12 +25,18 @@
 
 - 每帳號：連續失敗 5 次 → `locked_until = now + 15 分鐘`（D1）。
 - 人員 PIN：只能在**已綁定該店的裝置**上嘗試（staff_device token 必須先存在），裝置綁定由店長操作 → 外部無法直接嘗試 PIN。
-- 每店每分鐘登入失敗 > 20 → 該店 PIN 登入暫停 5 分鐘（計數放 DO，因為登入本來就要找該店，順便）。
+- 每店每分鐘登入失敗 > 20 → 該店 PIN 登入暫停 5 分鐘（實作：計數放 D1 `pin_failures`，登入流程不經 DO，ADR-046；暫停期間回 429 `PIN_PAUSED`）。
 
 ### JWT
 
 - HS256，`JWT_SECRET`（Worker secret）。claims：`sub`、`role`、`store_id`、`tv`（token_version）、`exp`。
 - 撤銷：改密碼、停用帳號、解除裝置配對 → `token_version + 1`。Worker 驗證時比對（`token_version` 與 license 一起快取 60 秒）。
+
+### 平台管理員（M4 實作）
+
+- `/api/admin/*`：Worker 驗 `Cf-Access-Jwt-Assertion`（或 `CF_Authorization` cookie），RS256、`kid` 對應 `https://<team>/cdn-cgi/access/certs`（isolate 快取 10 分鐘，不認得的 kid 每分鐘最多重抓一次）、`aud` 含 `ACCESS_AUD`、`iss`＝`https://<team>`、`exp`／`nbf`；email 必須在 `ACCESS_ALLOWED_EMAILS`（production 名單為空即拒絕）。稽核的操作者為該 email。
+- 寫入（非 GET）需 `x-qcs-admin` 標頭且 Origin 同源或白名單（CSRF，ADR-047）。總後台頁面與 API 同源（`call-admin.jjoy.ai/api/*` Worker route）。
+- 本機：`ENV=local` 且 `DEV_BYPASS_ACCESS=1` → `dev@local`。
 
 ## 2. 門店開通（licensing）
 

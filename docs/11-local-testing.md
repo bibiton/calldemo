@@ -17,8 +17,8 @@
 | D1 | ✅ `wrangler d1 migrations apply qcs-db-local --local --env local`＋ seed（`pnpm dev:seed`） | 已查證支援本機模擬 |
 | KV、R2、Queues | ✅ 本機模擬 | 已查證 |
 | Cron（scheduled handler） | ✅ `curl "http://localhost:8787/cdn-cgi/local/scheduled?format=json"`，或 Local Explorer 介面 | 已查證（舊版的 `--test-scheduled`＋`/__scheduled?cron=` 在現行文件未出現，**未查證**是否仍可用） |
-| Analytics Engine | 本機寫入是否可查 | **未查證**；`env.local` 不綁 AE（M4 計量才用到） |
-| Cloudflare Access | ❌ | 本機以 `DEV_BYPASS_ACCESS=1`（只在 `ENV=local` 生效，production 啟動時若偵測到即拒絕啟動）帶入假的平台管理員 |
+| Analytics Engine | 本機寫入是否可查 | **未查證**；`env.local` 不綁 AE。寫入以 mock binding（Vitest `envWith({ USAGE })`）測，SQL API 匯入以注入的假 fetch 測；DO 夜間喚醒點在本機寫到 `StoreQueueDO.aeSink` |
+| Cloudflare Access | ❌ | 本機以 `DEV_BYPASS_ACCESS=1`（只在 `ENV=local` 生效，production 帶此旗標整個 Worker 回 500）帶入假的平台管理員 `dev@local`；JWT 驗證以測試產生的 RSA 金鑰＋注入的 JWKS 測（`access.test.ts`） |
 
 - 本機資料預設存在 `.wrangler/state`（重開仍在；要清空就刪掉該資料夾）。持久化細節以 wrangler 實際行為為準。
 
@@ -102,6 +102,22 @@ Playwright 新增 `notify.spec.ts`（M2）、`store-admin.spec.ts`、`pairing.sp
 - `notify` 專案用新版 headless Chromium（`channel: "chromium"`）：headless-shell 的 `Notification.permission` 初始值不可靠、通知中心不完整。放在最後跑（main-flow 斷言當日第一號 A001）。
 - 版面量測 helper `layoutIssues()`：每頁斷言無水平捲動、所有按鈕／輸入／開關 ≥ 44×44。
 - 本機 R2：上傳檔存在 wrangler 本機 R2；面板 dev server 把 `/ads/*` 轉到 Worker 的 `/media/ads/*`（只在 `ENV=local` 提供），模擬 production 的 `call-media.jjoy.ai`。
+
+### 3.2.3 M4／M5 實作對照（2026-10-27）
+
+T18 已實作並通過（`usage.test.ts`：同一情境開／關計量，以 SQLite cursor 的 `rowsWritten` 量測，rows written、alarm、meta 列完全相同）。
+
+| 範圍 | 測試檔 | 內容 |
+|---|---|---|
+| 排隊順序（業主要求） | `queue-order.test.ts`、`packages/shared/test/queue-order.test.ts` | 固定／不固定時鐘並發 200、混合類別、重排／重叫／轉櫃台、rowid 對調、原始碼檢查（ADR-042） |
+| Access | `access.test.ts` | 本機繞過與 JWT 兩種模式、aud／iss／exp／nbf／alg、金鑰輪替、名單、CSRF |
+| 總後台 | `admin.test.ts` | 品牌、建立／列表／詳情、停用／到期即斷線、上限與功能開關、封存、店長帳號、面板在線與無法出聲、稽核 |
+| 計量 | `usage.test.ts`、`admin-usage.test.ts` | T18、DO 桶、推播計數、AE 寫入／匯入、非營業時間、日／月彙總、分攤、警示、Cron、**人為夜間喚醒→警示**、用量頁、帳單、CSV |
+| 上線前 | `m5.test.ts` | CORS 白名單、錯誤不洩漏、每店 PIN 限流、完整流程後 D1 全表無個資、`/health` 版本 |
+| 顧客圖片 | `ads.test.ts`（追加） | 顯示於顧客手機的勾選、時段、影片不可勾選 |
+
+Playwright 新增 `admin.spec.ts`（總後台 390×844／360×640 全頁）、`customer-images.spec.ts`。總後台 dev server：開發 5171、E2E 6171。
+其他腳本：`scripts/check-secrets.mjs`（`pnpm test`）、`scripts/pii-check.sh --local`、`scripts/load/local-load.mjs`（本機壓測）。
 
 ### 3.3 E2E：Playwright（手機直版 viewport）
 

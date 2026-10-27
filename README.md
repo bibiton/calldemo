@@ -1,7 +1,7 @@
 # 叫號系統（queue-call-system）— 規劃文件
 
-> 狀態：**M0（本機部分）＋M1 核心叫號＋M2 通知＋M3 門店後台與授權已實作**（2026-10-27），本機測試（Vitest 210、Playwright 32）與視覺測試通過；尚未部署任何 Cloudflare 環境，實機推播／iOS／電視待部署後在正式網址驗證。
-> 逐項狀態見 [docs/09-roadmap.md](docs/09-roadmap.md)「M0／M1」「M2／M3 實作狀態」，視覺測試紀錄見 [docs/visual-review-M1.md](docs/visual-review-M1.md)、[docs/visual-review-M3.md](docs/visual-review-M3.md)。
+> 狀態：**M0（本機部分）＋M1～M3＋M4 總後台與計量＋M5 上線前檢查（本機部分）已實作**（2026-10-27），本機測試（Vitest 304、Playwright 43）、壓測（本機）與視覺測試通過；尚未部署任何 Cloudflare 環境，實機推播／iOS／電視、Access、計量誤差比對、夜間成本待部署後在正式網址驗證。
+> 逐項狀態見 [docs/09-roadmap.md](docs/09-roadmap.md)「M0／M1」「M2／M3」「M4／M5 實作狀態」，視覺測試紀錄見 [visual-review-M1](docs/visual-review-M1.md)、[M3](docs/visual-review-M3.md)、[M4](docs/visual-review-M4.md)。
 > `scripts/` 的部署腳本仍是草稿，**未實測**（M6）。
 > 文件日期：2026-10-27。價格查證日期：2026-10-27（來源見 [docs/02-cost-model.md](docs/02-cost-model.md)）。
 

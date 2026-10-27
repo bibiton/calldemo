@@ -24,7 +24,8 @@ export function DayBars({ days, value, format, label }: { days: { date: string }
   const [sel, setSel] = useState<number | null>(null);
   const vals = days.map(value);
   const max = Math.max(...vals, 0);
-  const i = sel ?? vals.length - 1;
+  // 預設選「昨天」（最後一天是今天，尚未彙總）
+  const i = sel ?? Math.max(0, vals.length - 2);
   const n = days.length;
   const pick = (e: React.PointerEvent<HTMLDivElement>) => {
     const r = e.currentTarget.getBoundingClientRect();

@@ -50,7 +50,7 @@
   QR 以 `top: 68.3vh` 定位，保證不與廣告區重疊（E2E 量測把關）。
 - 尺寸：**QR 本體邊長 ≥ 螢幕寬度的 38%**。55 吋直立電視寬約 68 cm → QR 約 26 cm，
   依「掃描距離 ≈ 10 × QR 邊長」的經驗比例，可在約 2.5 公尺掃到。（比例為經驗值，**實機驗證列在 roadmap**）
-- QR 內容盡量短（`https://q.<domain>/s/<code>?w=<n>&k=<10字>`），使用 QR Version ≤ 4、糾錯 M → 模組大、好掃。
+- QR 內容盡量短（`https://call-q.jjoy.ai/s/<code>?w=<n>&k=<10字>`），使用 QR Version ≤ 4、糾錯 M → 模組大、好掃。
 - 黑白高對比、四周留白 ≥ 4 模組；下方一行「**掃碼取號**」（≥ 48 px）。
 - 每 120 秒換一張（ADR-012），切換前 5 秒預算好，不閃白。
 - 門店停用／休息中：QR 區改顯示「暫停取號」，不顯示可掃的 QR。
@@ -98,7 +98,7 @@ display 前端據此分兩種模式：
 解鎖前號碼與 QR 照常顯示，收到叫號時覆蓋層變紅。
 
 **全程可只用遙控器**：面板端沒有任何需要文字輸入的步驟——配對碼由面板**顯示**、店長在手機上輸入（見 06-auth §3）；
-App 首次啟動預設載入 production 網址，切換 staging 的選項以可聚焦按鈕（D-pad 上下左右＋OK）操作，不需要鍵盤。
+App 首次啟動預設載入正式網址（`call-display.jjoy.ai`；只有一套環境，ADR-049），設定畫面以可聚焦按鈕（D-pad 上下左右＋OK）操作，不需要鍵盤。
 所有面板上的按鈕都有明顯的焦點框，`tabindex` 順序合理。
 
 **音訊被擋回報**：面板偵測到上述狀態（啟動時、每次叫號播放失敗時、狀態變化時）經既有 WS 送
@@ -111,7 +111,7 @@ App 首次啟動預設載入 production 網址，切換 staging 的選項以可�
 - 素材：圖片（JPEG/PNG/WebP，≤ 5 MB）、影片（**MP4 H.264**、**建議 1080×720（3:2）**、**≤ 50 MB**、≤ 120 秒）。
 - 廣告區實際尺寸固定 3:2（1080×1920 面板上為 1080×720，ADR-028）；比例不符的素材以 contain 完整顯示、圖片背後補模糊底，**不裁切**。
 - manifest：`GET /api/display/ads/manifest` → `{version, items:[{assetId,url,kind,durationMs,activeFrom,activeTo,dows,startDate,endDate}]}`；
-  `url` 指向 `media.<domain>/ads/<owner>/<sha256>.<ext>`（內容不可變，可長期快取）。
+  `url` 指向 `call-media.jjoy.ai/ads/<owner>/<sha256>.<ext>`（內容不可變，可長期快取）。
 - 面板收到 `ads.manifest{version}` 且版本比本地新 → 重抓 manifest → Service Worker 下載新素材、刪除不再使用的。
 - **播過一次就不再下載**：素材存在 Cache Storage；斷網時繼續播放快取中的素材並顯示最後狀態。
 - 品牌統一下發：manifest 合併品牌清單（若門店 `accept_brand=1`）與門店清單。
@@ -261,7 +261,7 @@ App 首次啟動預設載入 production 網址，切換 staging 的選項以可�
 ```
 
 - 選項來源：`assets/audio/manifest.json` 的主題包 tag 與句子清單（另案產生）；設定存 `stores.voice_settings`（03-data-model）。
-- 試聽：門店後台直接從 `display.<domain>/audio/` 讀取同一份素材（CORS 允許 `store.` 來源），在店長手機播放「叮咚＋前綴＋A23 號，請到 2 號櫃台」。
+- 試聽：門店後台直接從 `call-display.jjoy.ai/audio/` 讀取同一份素材（CORS 允許 `call-store` 來源），在店長手機播放「叮咚＋前綴＋A23 號，請到 2 號櫃台」。
 - 儲存後經 `settings.changed` 下發，面板下一次叫號即套用。
 
 ### 廣告管理（手機直版）
@@ -314,6 +314,15 @@ App 首次啟動預設載入 production 網址，切換 staging 的選項以可�
 ```
 
 ---
+
+### 實作（M4，2026-10-27）
+
+分頁：門店／用量／稽核／更多。門店列表（搜尋、狀態篩選、有警示的排最前、面板 x／上限、本月分攤或估算）、門店詳情（狀態與停用／恢復、警示、面板在線與無法出聲、授權與上限、功能開關、店長帳號、刪除＝封存）、建立門店（初始密碼只顯示一次）、用量與成本、每店用量、帳單輸入、CSV、稽核、品牌。
+身分由 Cloudflare Access 處理，前端不存 token；Access 失效時顯示「需要重新登入」。截圖與檢查見 [visual-review-M4.md](visual-review-M4.md)。
+
+### 顧客手機圖片（ADR-048）
+
+顧客頁頁首顯示門店 Logo（失敗退回店名）；取號表單上方一張矮版主視覺；號碼頁（等候中）在提醒卡之後輪播門店勾選「顯示於顧客手機」的圖片（只圖片、3:2、5 秒）。門店後台廣告「設定」可勾選並有手機預覽。
 
 ## 6. MVP 範圍外（後續）
 

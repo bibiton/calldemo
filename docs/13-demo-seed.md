@@ -76,7 +76,7 @@ ffmpeg -i in.mp4 -vf "scale=1080:720:force_original_aspect_ratio=increase,crop=1
 
 ```bash
 pnpm seed:demo                 # 本機（wrangler dev 的本機 D1／R2／KV）
-pnpm seed:demo --env staging   # staging
+pnpm seed:demo --env production --confirm   # 正式環境只動 DEMO* 門店（只有一套環境，ADR-049；M7 定案）
 ```
 
 流程：
@@ -87,4 +87,4 @@ pnpm seed:demo --env staging   # staging
 
 - 冪等：重跑會覆蓋 demo 資料，不影響其他門店。
 - `pnpm seed:demo --reset`：刪除所有 `brand_demo` 資料（含 R2 物件）。
-- **不支援 production**（腳本遇到 `--env production` 直接拒絕）。
+- ~~不支援 production~~：ADR-049 之後只有一套正式環境（本案就是 DEMO），原「拒絕 production」改為：正式環境必須帶 `--confirm`，且只寫入／重設 `features.demo = true` 的 `DEMO*` 門店，不碰其他門店。實作與定案屬 M7（7.3）。

@@ -29,7 +29,7 @@
 ```
 
 - `wakes`：建構式（從 hibernation 喚醒時會重新執行）在記憶體 +1，下次寫入 `state` 時落地。
-- `estActiveSec` 不另存，由 `events × 0.05 + wakes × 0.01` 在彙總時推算（係數以 staging 實測校正）。
+- `estActiveSec` 不另存，由 `events × 0.05 + wakes × 0.01` 在彙總時推算（係數部署後以正式環境實測校正）。
 - 限制：DO 若「醒來但沒有任何事件就被驅逐」，那次喚醒不會被計到——而這正是 hibernation 失效的情境，
   所以**夜間異常偵測不能只靠 DO 自己計數**，要搭配 §5 的 GraphQL 數據。
 
@@ -184,3 +184,21 @@ CREATE TABLE billing_inputs (          -- 每月實際帳單（總後台輸入�
 ## 7. 作為收費依據
 
 用量數據同時是向門店收費、方案分級的依據；方案設計建議見 DECISIONS ADR-020。
+
+## 8. 實作對照（M4，2026-10-27）
+
+與上文規劃的差異與細節（決策見 ADR-044、ADR-045）：
+
+| 項目 | 實作 |
+|---|---|
+| AE 寫入 | `apps/api/src/usage/ae.ts`：每請求 `indexes=[storeId 或 _platform]`、`blobs=[路由樣板, method, 狀態類別, 角色]`、`doubles=[1, wallMs]`。本機不綁 AE（測試以 mock binding 驗證） |
+| DO 計數 | `state.u` 欄位：`wsConn, wsIn, rpc, alarms, tickets, calls, events, wakes, rowsW`；`rowsW` 估算＝每交易 +1、每事件 +2。T18：開／關計量的實際 rows written（SQLite cursor 量測）、alarm、meta 列完全相同 |
+| 夜間喚醒 | DO 建構式在**門店當地非營業時間**寫 1 個 AE 點（`blob4='do'`，不算 API 請求）；每日匯入 `usage_hourly.do_night_wakes`。沒設營業時間的門店以 02:00～06:00 為深夜 |
+| 推播計數 | q-push consumer 每批依店 upsert `usage_hourly.push_sent／push_failed`（最終結果才計：成功＝sent；放棄／404／410＝sent＋failed） |
+| 彙總時間 | 沿用每小時 Cron：UTC 01:05 前一日（AE 匯入→全店日彙總）、每月 1 日 02:05 月結；查詢時缺的過去日子即時補算 |
+| 表格 | `0004_m4_usage_admin.sql`：上文四張表＋`usage_hourly.do_alarms／do_night_wakes`、`usage_daily.do_rpc／do_wakes／do_wakes_offhours_max`、`usage_monthly.active_days／api_errors…` |
+| 估算單價 | `apps/api/src/usage/prices.ts`（02 §1，查證日 2026-10-27）；每請求 CPU 3 ms、KV 0.5 次、D1 每號 8 列等假設同 02 §2 |
+| 分攤 | `allocate()`：依 §5；某項全部用量為 0 改依估算成本占比，再為 0 則活躍門店平均；「其他」依估算成本占比；`features.internal` 門店與 `_platform` 不分 Workers 月費 |
+| 警示 | `apps/api/src/usage/alerts.ts`：依 §6；推播失敗率需 ≥ 10 則；夜間依「非營業時間單一小時最多喚醒」> 10；面板無法出聲依 D1 狀態 > 5 分鐘（狀態改變即時寫入，ADR-045） |
+| 總後台 | 「用量」分頁（月份切換、實際／估算、排行：成本／號碼數／每號成本、30 日趨勢、CSV）、每店用量頁、帳單輸入（12 項）。今日 API 請求數在 AE 已設定時即時查 |
+| 未做 | GraphQL 帳號用量預填帳單（需 M0 0.5 introspection）；與帳號層級數字誤差 < 20% 的比對需正式環境跑一週 |
