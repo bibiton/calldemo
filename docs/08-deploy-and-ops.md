@@ -16,7 +16,7 @@ queue-call-system/
 │  │  └─ src/
 │  ├─ admin/ store/ staff/ display/ customer/    Vite + React + Tailwind
 ├─ packages/shared/             型別、WS 協定、mask、phone、qr-token
-├─ assets/audio/                預錄語音素材 + manifest.json（部署時上傳 R2）
+├─ assets/audio/                預錄語音素材 + manifest.json（建置時複製進 apps/display/public/audio，隨 Pages 部署）
 └─ scripts/                     bootstrap.sh deploy.sh rollback.sh smoke.sh lib.sh
 ```
 
@@ -133,7 +133,7 @@ routes = [{ pattern = "api.example.com", custom_domain = true }]
 | 7 | 建 10 個 Pages 專案（5 app × 環境）：`wrangler pages project create qcs-<app>[-staging] --production-branch main` | `wrangler pages project list` 已有 → 跳過 |
 | 8 | D1 migration：`wrangler d1 migrations apply qcs-db[-staging] --remote --env <env>` | wrangler 自己記錄已套用的 migration |
 | 9 | 首次 `wrangler deploy --env <env>`（建立 Worker、DO class、Queue consumer、Cron、`api.` 自訂網域） | 重複 deploy 無副作用 |
-| 10 | 上傳語音素材 `assets/audio/**` → R2 `voice/...`（依 manifest 版本） | 物件已存在且 hash 相同 → 跳過 |
+| 10 | （無需動作）語音包隨 `display` 的 Pages 部署上線（ADR-026）；此步只檢查 `assets/audio/manifest.json` 存在且檔數 < 15,000 | — |
 | 11 | 建立預設品牌＋第一位平台管理員：`wrangler d1 execute ... --command "INSERT OR IGNORE ..."` | `INSERT OR IGNORE` |
 | 12 | 綁定網域與 Access（見 §6、§7）：有 `CF_API_TOKEN` 具對應權限時以 API 自動做，否則印出 dashboard 操作步驟 | 已存在 → 跳過 |
 | 13 | 執行 `scripts/deploy.sh <env>` 完成第一次完整部署 | — |
@@ -145,7 +145,7 @@ routes = [{ pattern = "api.example.com", custom_domain = true }]
 2. 記下目前 Worker 版本：wrangler deployments list --env <env> → PREV_VERSION
 3. D1 migration：wrangler d1 migrations apply <db> --remote --env <env>   （只允許向下相容的 migration）
 4. wrangler deploy --env <env>                 （Worker + DO + Queue consumer + Cron 一次上）
-5. 5 個前端：pnpm --filter <app> build → wrangler pages deploy apps/<app>/dist --project-name qcs-<app>[-staging] --branch main
+5. 5 個前端：pnpm --filter <app> build（display 的 build 會先把 assets/audio 複製到 public/audio） → wrangler pages deploy apps/<app>/dist --project-name qcs-<app>[-staging] --branch main
 6. scripts/smoke.sh <env>：
    a. GET https://api.<domain>/health → 200 且 {version} 等於本次 commit
    b. WebSocket：以 smoke 測試門店的測試 device token 連 /ws/store/<smokeStoreId>，送 "ping" 須在 5 秒內收到 "pong"，並收到 hello

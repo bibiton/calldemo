@@ -84,10 +84,13 @@ ok "D1 migration 完成"
 wr deploy --env "$ENV_NAME"
 ok "Worker $WORKER_NAME 已部署"
 
-# 9. 語音素材上傳 R2（依 manifest；已存在相同物件則略過——比對邏輯待實作）
+# 9. 語音包隨 apps/display 的 Pages 部署（ADR-026），這裡只做檢查
 if [[ -f "$ROOT/assets/audio/manifest.json" ]]; then
-  info "上傳語音素材（TODO：依 manifest 版本與 hash 跳過已存在者）"
-  # find "$ROOT/assets/audio" -type f ... | while read f; do wrangler r2 object put "$R2_NAME/voice/..." --file "$f" --remote; done
+  n="$(find "$ROOT/assets/audio" -type f | wc -l)"
+  (( n < 15000 )) || die "語音包 $n 檔，加上前端檔可能超過 Pages 單站 20,000 檔上限"
+  ok "語音包 $n 檔，將隨 display 部署"
+else
+  info "找不到 assets/audio/manifest.json，面板將只能用 speechSynthesis 備援"
 fi
 
 # 10. 預設品牌、smoke 門店、平台管理員

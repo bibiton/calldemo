@@ -62,7 +62,7 @@
 - 叫號期間：廣告影片 `muted = true` 並暫停（`pause()`）；佇列清空後恢復播放（影片從暫停處繼續）。圖片輪播計時器同樣暫停。
 - 語音：**全部預錄**（業主定案，edge-tts 產生，親切俏皮風格、台詞原創），依 `assets/audio/manifest.json` 找片段，
   以 Web Audio API 依序排程、無縫拼接。不做即時語音合成。
-- 音檔與叮咚音效由 Service Worker 依 manifest 版本預先快取，斷網照樣能唸。
+- 語音包隨 `apps/display` 靜態部署（ADR-026），由 Service Worker 漸進快取（見 07-notifications §7），之後斷網照樣能唸。
 - 只有在素材缺檔／解碼失敗時才退回 `speechSynthesis` 唸基本句型（最後備援），並提示店長素材不完整。
 - 門店後台可設定：音量、唸幾次（1～3）、叮咚音效款式、語言（MVP 中文）、靜音時段、**趣味語音開關與頻率**，經 `settings.changed` 下發。
 
@@ -230,7 +230,7 @@
 ```
 
 - 選項來源：`assets/audio/manifest.json` 的主題包 tag 與句子清單（另案產生）；設定存 `stores.voice_settings`（03-data-model）。
-- 試聽：門店後台直接從 `media.` 讀取同一份素材，在店長手機播放「叮咚＋前綴＋A23 號，請到 2 號櫃台」。
+- 試聽：門店後台直接從 `display.<domain>/audio/` 讀取同一份素材（CORS 允許 `store.` 來源），在店長手機播放「叮咚＋前綴＋A23 號，請到 2 號櫃台」。
 - 儲存後經 `settings.changed` 下發，面板下一次叫號即套用。
 
 ### 廣告管理（手機直版）

@@ -20,7 +20,7 @@
 ```
 顧客手機 ─┐                                   ┌─ D1（主檔＋歷史）
 人員手機 ─┼─ Pages（5 個 SPA，靜態免費）       ├─ KV（門店開通狀態快取）
-面板電視 ─┤                                   ├─ R2（Logo／廣告／音檔）
+面板電視 ─┤                                   ├─ R2（Logo／廣告）
 後台     ─┘── Worker API（Hono）──────────────┼─ Queues（歷史批次寫入、Web Push）
                  │                             └─ Cron（每日彙總、清理）
                  └─ StoreQueueDO（每店一個，SQLite＋Hibernatable WebSocket）
@@ -57,7 +57,7 @@
 | [docs/13-demo-seed.md](docs/13-demo-seed.md) | Demo 資料包（虛構迴轉壽司品牌、素材授權、模擬叫號、一鍵灌入） |
 | [DECISIONS.md](DECISIONS.md) | 決策紀錄（ADR） |
 | [scripts/](scripts/) | bootstrap／deploy／rollback 腳本草稿（**未實測**） |
-| `assets/audio/` | 預錄叫號語音素材與 `manifest.json`（另案產生） |
+| `assets/audio/` | 預錄叫號語音素材與 `manifest.json`（另案產生；建置時複製進 `apps/display` 隨 Pages 部署，ADR-026） |
 
 ## Monorepo 規劃
 
