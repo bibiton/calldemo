@@ -211,13 +211,14 @@ function TakeForm({
   const [showTerms, setShowTerms] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [touched, setTouched] = useState({ name: false, phone: false });
+  const [touched, setTouched] = useState({ name: false, phone: false, consent: false });
+  const errRef = useRef<HTMLParagraphElement | null>(null);
   const phoneOk = !!normalizePhone(phone);
   const nameOk = !!validateName(name);
   const canSubmit = phoneOk && nameOk && consent && !busy;
 
   async function submit() {
-    setTouched({ name: true, phone: true });
+    setTouched({ name: true, phone: true, consent: true });
     if (!canSubmit) return;
     unlockAlerts();
     setBusy(true);
@@ -233,6 +234,7 @@ function TakeForm({
     } catch (e) {
       setError(msg(e));
       setBusy(false);
+      requestAnimationFrame(() => errRef.current?.scrollIntoView({ block: "center", behavior: "smooth" }));
     }
   }
 
@@ -281,6 +283,7 @@ function TakeForm({
             <input type="checkbox" className="mt-1 h-6 w-6 shrink-0 accent-brand" checked={consent} onChange={(e) => setConsent(e.target.checked)} data-testid="consent" />
             <span className="text-base leading-relaxed">我同意個資使用說明</span>
           </label>
+          {touched.consent && !consent && <p className="text-sm text-red-600" data-testid="consent-hint">請勾選同意後才能取號</p>}
           <button type="button" className="mt-1 min-h-11 text-sm text-brand underline" onClick={() => setShowTerms((x) => !x)} aria-expanded={showTerms}>
             {showTerms ? "收合說明" : "查看說明"}
           </button>
@@ -290,7 +293,7 @@ function TakeForm({
             </p>
           )}
         </div>
-        {error && <p className="rounded-xl bg-red-50 p-3 text-base text-red-700" role="alert">{error}</p>}
+        {error && <p ref={errRef} className="rounded-xl bg-red-50 p-3 text-base text-red-700" role="alert">{error}</p>}
         <div className="fixed inset-x-0 bottom-0 mx-auto max-w-md bg-gradient-to-t from-[#f4f6fa] via-[#f4f6fa] to-transparent px-4 pt-6 pb-[max(1rem,env(safe-area-inset-bottom))]">
           <button
             type="submit"
@@ -381,7 +384,7 @@ function TicketPage({ saved, initial, existing, onReset }: { saved: Saved; initi
           {t.status === "waiting" && (
             <>
               <p>前面還有 <b className="text-2xl tabular-nums" data-testid="ahead">{t.ahead}</b> 位</p>
-              <p className="mt-1 text-base text-slate-500">預估約 {Math.max(1, t.etaMin)} 分鐘</p>
+              <p className="mt-1 text-base text-slate-500">{t.ahead === 0 ? "下一位就是您，請留意叫號" : `預估約 ${Math.max(1, t.etaMin)} 分鐘`}</p>
             </>
           )}
           {(t.status === "called" || t.status === "serving") && <p className="text-xl font-bold text-red-600">輪到您了！請到 {t.counterNo ?? ""} 號櫃台</p>}
@@ -419,7 +422,7 @@ function TicketPage({ saved, initial, existing, onReset }: { saved: Saved; initi
       </div>
 
       {alert && (t.status === "called" || t.status === "serving") && (
-        <div className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-6 bg-red-600 px-6 text-center text-white animate-[qcs-blink_1s_ease-in-out_infinite]" role="alertdialog" aria-label="叫號提醒" data-testid="called-alert">
+        <div className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-6 bg-red-600 px-6 text-center text-white animate-[qcs-alert-bg_1s_ease-in-out_infinite]" role="alertdialog" aria-label="叫號提醒" data-testid="called-alert">
           <p className="text-2xl font-bold">輪到您了！</p>
           <p className="text-8xl font-black tabular-nums">{t.number}</p>
           <p className="text-3xl font-bold">請到 {t.counterNo ?? ""} 號櫃台</p>

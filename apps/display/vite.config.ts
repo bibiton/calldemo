@@ -5,7 +5,7 @@ import { cpSync, createReadStream, existsSync, statSync } from "node:fs";
 import { join, normalize, resolve } from "node:path";
 import { devProxy } from "../../packages/shared/vite/preset";
 
-const AUDIO_SRC = resolve(__dirname, "../../assets/audio");
+const AUDIO_SRC = resolve(import.meta.dirname, "../../assets/audio");
 const SKIP = new Set(["demo", "README.md", ".gen-cache.json"]);
 
 /** 語音包隨 display 部署（ADR-026）：開發時直接由 assets/audio 提供，建置時複製到 dist/audio（排除 demo、README）。 */

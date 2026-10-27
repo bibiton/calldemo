@@ -55,7 +55,7 @@ function Board({ token, storeId }: { token: string; storeId: string }) {
   const time = new Intl.DateTimeFormat("zh-TW", { timeZone: tz, hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(now);
   const services = s?.services ?? [];
   const cur = state.current;
-  const recent = state.recent.filter((r) => r.id !== cur?.id).slice(0, 4);
+  const recent = state.recent.filter((r) => r.id !== cur?.id).slice(0, 3);
   const suspended = !!state.suspended || conn === "suspended";
   const qrPaused = suspended || !open;
 
@@ -70,7 +70,7 @@ function Board({ token, storeId }: { token: string; storeId: string }) {
   }
 
   return (
-    <main className="grid h-full grid-rows-[4.2vh_27vh_37.5vh_1fr] overflow-hidden bg-brand text-white" data-testid="board">
+    <main className="grid h-full grid-rows-[4.2vh_26vh_37.5vh_1fr] overflow-hidden bg-brand text-white" data-testid="board">
       {/* 頂欄 */}
       <header className="flex items-center justify-between gap-[2vw] bg-black/30 px-[3vw]">
         <div className="flex min-w-0 items-center gap-[1.5vw]">
@@ -93,15 +93,17 @@ function Board({ token, storeId }: { token: string; storeId: string }) {
         {open ? (
           <>
             <p className="text-[2.6vh] font-bold tracking-[0.4em] text-white/80">目前叫號</p>
+            {!cur && <p className="text-[6vh] font-black text-white/40" data-testid="no-call">等待叫號</p>}
             <p
               key={state.flashKey}
+              hidden={!cur}
               className={`text-[min(24vw,13.5vh)] leading-none font-black tracking-[0.06em] text-accent tabular-nums ${state.flashKey ? "animate-[qcs-flash_0.6s_ease-in-out_3]" : ""}`}
               data-testid="current-number"
             >
-              {cur?.number ?? "—"}
+              {cur?.number ?? ""}
             </p>
-            <p className="text-[4.2vh] font-bold" data-testid="current-counter">
-              {cur ? counterLabel(cur) : "請稍候"}
+            <p className={`font-bold ${cur ? "text-[4.2vh]" : "text-[3vh] text-white/80"}`} data-testid="current-counter">
+              {cur ? counterLabel(cur) : "請掃描右下角 QR Code 取號"}
             </p>
           </>
         ) : (
@@ -118,20 +120,20 @@ function Board({ token, storeId }: { token: string; storeId: string }) {
       </section>
 
       {/* 近期叫號＋等候；右側留給固定 QR */}
-      <section className="flex min-w-0 flex-col gap-[1.2vh] py-[1.6vh] pr-[calc(min(49vw,27.5vh)+4vw)] pl-[3vw]">
-        <h2 className="text-[2.2vh] font-bold text-white/70">近期叫號</h2>
-        <ul className="flex flex-col gap-[0.9vh]" data-testid="recent">
+      <section className="flex min-h-0 min-w-0 flex-col gap-[0.8vh] overflow-hidden py-[1.4vh] pr-[calc(min(49vw,27.5vh)+4vw)] pl-[3vw]" data-testid="bottom-left">
+        <h2 className="text-[2vh] font-bold text-white/70">近期叫號</h2>
+        <ul className="flex flex-col gap-[0.4vh]" data-testid="recent">
           {recent.length === 0 && <li className="text-[2.4vh] text-white/50">尚無</li>}
           {recent.map((r) => (
-            <li key={r.id} className="flex items-baseline justify-between gap-[1vw] border-b border-white/10 pb-[0.6vh]">
-              <span className="text-[3.6vh] font-black tabular-nums">{r.number}</span>
-              <span className="text-[2.2vh] whitespace-nowrap text-white/80">{r.counterNo ? `${r.counterNo} 號櫃台` : "櫃台"}</span>
+            <li key={r.id} className="flex items-baseline justify-between gap-[1vw] border-b border-white/10 pb-[0.4vh]">
+              <span className="text-[3vh] leading-tight font-black tabular-nums">{r.number}</span>
+              <span className="text-[2vh] whitespace-nowrap text-white/80">{r.counterNo ? `${r.counterNo} 號櫃台` : "櫃台"}</span>
             </li>
           ))}
         </ul>
-        <div className="mt-auto rounded-[1vw] bg-white/10 px-[2vw] py-[1vh]" data-testid="waiting">
-          <p className="text-[1.8vh] text-white/70">等候人數</p>
-          <p className="flex flex-wrap gap-x-[3vw] text-[3vh] font-bold tabular-nums">
+        <div className="mt-auto shrink-0 rounded-[1vw] bg-white/10 px-[2vw] py-[0.8vh]" data-testid="waiting">
+          <p className="text-[1.7vh] text-white/70">等候人數</p>
+          <p className="flex flex-wrap gap-x-[3vw] text-[2.6vh] leading-snug font-bold tabular-nums">
             {services.map((sv) => (
               <span key={sv.id} className="whitespace-nowrap">
                 {sv.prefix} {sv.name} <span className="text-accent">{state.waiting[sv.id] ?? 0}</span>
@@ -144,18 +146,18 @@ function Board({ token, storeId }: { token: string; storeId: string }) {
       <QrPanel storeId={storeId} storeCode={s?.code ?? ""} keyB64={state.qr?.keyB64 ?? null} baseUrl={state.qr?.baseUrl ?? null} serverOffset={state.serverOffset} paused={qrPaused} />
 
       {gateView.prompt && (
-        <div
-          role="alertdialog"
-          aria-label="啟用聲音"
-          data-testid="unlock-overlay"
-          data-alert={gateView.alert ? "1" : "0"}
-          className={`fixed inset-0 z-40 flex items-start justify-center bg-black/55 pt-[6vh] ${gateView.alert ? "" : ""}`}
-        >
+        // 全螢幕接收點擊／按鍵，但不遮暗：號碼與 QR 照常可見（05-apps §1）；提示卡放在廣告區
+        <div role="alertdialog" aria-label="啟用聲音" data-testid="unlock-overlay" data-alert={gateView.alert ? "1" : "0"} className="fixed inset-0 z-40 cursor-pointer">
           <div
-            className={`mx-[5vw] rounded-[2vw] border-[0.6vw] px-[5vw] py-[3vh] text-center shadow-2xl animate-pulse ${gateView.alert ? "border-red-400 bg-red-700" : "border-accent bg-slate-900"}`}
+            className={`absolute top-[34vh] right-[5vw] left-[5vw] rounded-[2vw] border-[0.8vw] px-[5vw] py-[3vh] text-center shadow-2xl ${gateView.alert ? "border-red-300 bg-red-700 animate-[qcs-border_1s_ease-in-out_infinite]" : "border-accent bg-slate-950 animate-[qcs-border_1.6s_ease-in-out_infinite]"}`}
+            data-testid="unlock-card"
           >
-            <p className="text-[3.4vh] font-black">{gateView.alert ? "有新叫號，但目前無法出聲" : "尚未啟用聲音"}</p>
-            <p className="mt-[1.2vh] text-[2.4vh] leading-relaxed">請按遙控器 OK 鍵、鍵盤任一鍵，<br />或點一下畫面，以啟用聲音</p>
+            <p className="text-[3.4vh] font-black text-white">{gateView.alert ? "有新叫號，但目前無法出聲" : "尚未啟用聲音"}</p>
+            <p className="mt-[1.2vh] text-[2.4vh] leading-relaxed text-white">
+              請按遙控器 OK 鍵、鍵盤任一鍵，
+              <br />
+              或點一下畫面，以啟用聲音
+            </p>
           </div>
         </div>
       )}

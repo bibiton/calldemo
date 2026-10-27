@@ -12,7 +12,12 @@ body { margin: 0; font-family: var(--font-sans); -webkit-tap-highlight-color: tr
 
 body { background: var(--color-brand); overflow: hidden; }
 
+/* 叫號閃爍 3 次：以放大＋光暈呈現，最低不透明度 0.7，閃爍中仍可讀 */
 @keyframes qcs-flash {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.25; transform: scale(1.04); }
+  0%, 100% { opacity: 1; transform: scale(1); text-shadow: none; }
+  50% { opacity: 0.7; transform: scale(1.06); text-shadow: 0 0 0.4em rgba(245, 179, 1, 0.65); }
+}
+@keyframes qcs-border {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0); }
+  50% { box-shadow: 0 0 0 1.2vw rgba(255, 255, 255, 0.35); }
 }

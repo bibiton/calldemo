@@ -326,7 +326,12 @@ function Desk({ info, session, counter, onSwitchCounter, onLogout }: { info: Dev
               <li key={t.id}>
                 <button className="flex min-h-14 w-full items-center gap-3 px-4 py-2 text-left active:bg-slate-50" onClick={() => setSheet({ k: "ticket", t })}>
                   <span className="w-16 shrink-0 text-xl font-black tabular-nums">{t.number}</span>
-                  <span className="min-w-0 flex-1 truncate text-base">{t.name ?? "—"}{t.counterId && t.counterId !== counter.id ? "（指定其他櫃台）" : ""}</span>
+                  <span className="flex min-w-0 flex-1 flex-col">
+                    <span className="truncate text-base">{t.name ?? "—"}</span>
+                    {t.counterId && (
+                      <span className="text-sm text-amber-700">→ 指定 {info.counters.find((c) => c.id === t.counterId)?.name ?? "其他櫃台"}</span>
+                    )}
+                  </span>
                   <span className="shrink-0 text-sm text-slate-500">{minutesAgo(t.createdAt)} 分</span>
                 </button>
               </li>
@@ -372,7 +377,7 @@ function Desk({ info, session, counter, onSwitchCounter, onLogout }: { info: Dev
         </button>
       </nav>
 
-      {toast && <div className="fixed inset-x-4 top-16 z-50 mx-auto max-w-sm rounded-2xl bg-slate-900 px-4 py-3 text-center text-base text-white shadow-lg" role="status" data-testid="toast">{toast}</div>}
+      {toast && <div className="fixed inset-x-4 bottom-60 z-50 mx-auto max-w-sm rounded-2xl bg-slate-900 px-4 py-3 text-center text-base text-white shadow-lg" role="status" data-testid="toast">{toast}</div>}
 
       {sheet && (
         <div className="fixed inset-0 z-40 flex items-end bg-black/40" onClick={() => setSheet(null)}>

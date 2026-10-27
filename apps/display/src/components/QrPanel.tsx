@@ -70,7 +70,7 @@ export function QrPanel(props: {
   return (
     <section
       aria-label="掃碼取號"
-      className="fixed right-[2vw] bottom-[1.2vh] z-50 flex flex-col items-center gap-[0.6vh]"
+      className="fixed top-[68.3vh] right-[2vw] z-50 flex flex-col items-center gap-[0.6vh]"
       data-testid="qr-panel"
       data-qr-url={url ?? ""}
     >

@@ -11,4 +11,5 @@ html, body, #root { height: 100%; }
 body { margin: 0; font-family: var(--font-sans); -webkit-tap-highlight-color: transparent; }
 
 body { background: #f4f6fa; color: #0f172a; }
-@keyframes qcs-blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
+/* 叫號提醒：只閃底色、整層不透明，避免下層文字透出 */
+@keyframes qcs-alert-bg { 0%, 100% { background-color: #dc2626; } 50% { background-color: #991b1b; } }

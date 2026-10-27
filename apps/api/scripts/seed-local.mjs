@@ -154,7 +154,9 @@ for (const s of stores) {
   const staffDeviceToken = jwt({ sub: `${s.id}_sd1`, role: "staff_device", store_id: s.id, tv: 1, exp });
 
   // 佔位廣告（apps/display/public/demo-ads；本機 MEDIA_BASE 指向 display 自己）
-  const assets = [...Array.from({ length: 9 }, (_, i) => [`ad${i + 1}.svg`, "image", "image/svg+xml"]), ["ad-video.mp4", "video", "video/mp4"]];
+  // 影片放第 2 張：E2E 與現場都能很快看到「叫號時影片靜音暫停」
+  const imgs = Array.from({ length: 9 }, (_, i) => [`ad${i + 1}.svg`, "image", "image/svg+xml"]);
+  const assets = [imgs[0], ["ad-video.mp4", "video", "video/mp4"], ...imgs.slice(1)];
   sql.push(row("ad_playlists", { id: `${s.id}_pl`, owner_type: "store", owner_id: s.id, version: 1, accept_brand: 1, updated_at: now }));
   assets.forEach(([file, kind, mime], i) => {
     const id = `${s.id}_ad${i + 1}`;
