@@ -301,3 +301,21 @@ describe("面板音訊狀態回報", () => {
     d.ws.close();
   });
 });
+
+describe("面板音訊狀態放進 staff snapshot（門店後台一開就看得到警示）", () => {
+  it("面板回報 blocked 後，新連上的 staff snapshot.devices 帶 audio=blocked；display snapshot 不帶", async () => {
+    const id = uniq();
+    const d = await openWs(id, { role: "display", deviceId: "d9" });
+    await d.next(isType("snapshot"));
+    d.send({ t: "status", audio: "blocked", client: "browser" });
+    const s0 = await openWs(id, staffAuth);
+    await s0.next(isType("snapshot"));
+    await s0.next(isType("device.status"));
+    const s = await openWs(id, staffAuth);
+    const snap = await s.next(isType("snapshot"));
+    expect(snap.data.devices).toEqual([{ deviceId: "d9", audio: "blocked" }]);
+    const d2 = await openWs(id, { role: "display", deviceId: "d8" });
+    expect((await d2.next(isType("snapshot"))).data.devices).toBeUndefined();
+    for (const x of [d, s0, s, d2]) x.ws.close();
+  });
+});

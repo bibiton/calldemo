@@ -370,6 +370,11 @@ export class StoreQueueDO extends DurableObject<Env> {
       const q = (where: string) =>
         this.sql.exec<Row>(`SELECT * FROM tickets WHERE ${where} ORDER BY sort_key, rowid`).toArray().map((r) => this.staffView(r));
       snap.staff = { waiting: q("status='waiting'"), active: q("status IN ('called','serving')"), skipped: q("status='skipped'") };
+      // 目前連線中的面板與音訊狀態（門店後台／人員端一開就能看到「無法出聲」警示，不必等下一次狀態改變）
+      snap.devices = this.ctx.getWebSockets("role:display").map((ws) => {
+        const a = ws.deserializeAttachment() as Attachment | null;
+        return { deviceId: a?.deviceId ?? null, audio: a?.audio ?? null };
+      });
     }
     if (att.role === "customer" && att.ticketId) {
       const r = this.ticket(att.ticketId);
