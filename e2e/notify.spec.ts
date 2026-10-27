@@ -123,9 +123,16 @@ test("2.2 Service Worker：收到推播 → 顯示通知（叫號／快輪到／
   const deliver = async (p: object) => {
     await cdp.send("ServiceWorker.deliverPushMessage", { origin: URLS.customer + "/", registrationId: id, data: JSON.stringify(p) });
   };
-  await deliver({ t: "called", n: "A023", c: 2, a: 0, r: 0, id: "t1", url: "/t/t1" });
-  await deliver({ t: "soon", n: "A030", c: null, a: 3, r: 0, id: "t2", url: "/t/t2" });
-  await deliver({ t: "skipped", n: "A031", c: 1, a: 0, r: 0, id: "t3", url: "/t/t3" });
+  const count = () => page.evaluate(async () => (await (await navigator.serviceWorker.ready).getNotifications()).length);
+  const payloads = [
+    { t: "called", n: "A023", c: 2, a: 0, r: 0, id: "t1", url: "/t/t1" },
+    { t: "soon", n: "A030", c: null, a: 3, r: 0, id: "t2", url: "/t/t2" },
+    { t: "skipped", n: "A031", c: 1, a: 0, r: 0, id: "t3", url: "/t/t3" },
+  ];
+  for (const [i, p] of payloads.entries()) {
+    await deliver(p);
+    await expect.poll(count, { timeout: 10_000 }).toBe(i + 1);
+  }
   await expect
     .poll(async () => (await page.evaluate(async () => (await (await navigator.serviceWorker.ready).getNotifications()).map((n) => `${n.title}｜${n.body}`))).sort(), { timeout: 10_000 })
     .toEqual(["A031 已過號｜請洽櫃台人員", "快輪到您了｜A030 前面還有 3 位，請回到店內留意叫號", "輪到您了！A023｜請到 2 號櫃台"]);

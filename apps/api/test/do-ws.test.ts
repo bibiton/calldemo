@@ -307,10 +307,10 @@ describe("面板音訊狀態放進 staff snapshot（門店後台一開就看得�
     const id = uniq();
     const d = await openWs(id, { role: "display", deviceId: "d9" });
     await d.next(isType("snapshot"));
-    d.send({ t: "status", audio: "blocked", client: "browser" });
     const s0 = await openWs(id, staffAuth);
     await s0.next(isType("snapshot"));
-    await s0.next(isType("device.status"));
+    d.send({ t: "status", audio: "blocked", client: "browser" });
+    await s0.next(isType("device.status")); // 確認 DO 已處理狀態
     const s = await openWs(id, staffAuth);
     const snap = await s.next(isType("snapshot"));
     expect(snap.data.devices).toEqual([{ deviceId: "d9", audio: "blocked" }]);

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "../lib/api";
 import { invalidateMe, useMe } from "../lib/me";
-import { Button, Card, ErrorBox, inputCls, Loading, Page, Toggle, errText, toast } from "../ui";
+import { Button, Card, ErrorBox, inputCls, Loading, Page, Toggle, errText, revealError, toast } from "../ui";
 
 type Range = { open: string; close: string };
 const DAYS = [1, 2, 3, 4, 5, 6, 0];
@@ -30,6 +30,7 @@ export function Hours() {
   async function save() {
     if (anyBad || none) {
       setErr(none ? "至少要有一天營業，或改選「全天開放取號」。" : "有時段的開始時間晚於結束時間，請修正紅色欄位。");
+      revealError();
       return;
     }
     setBusy(true);

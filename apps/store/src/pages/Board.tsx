@@ -4,6 +4,7 @@ import { QcsSocket, ulid, type StaffTicket } from "@qcs/shared";
 import { api, auth, freshToken } from "../lib/api";
 import { wsUrl } from "../lib/env";
 import { useMe } from "../lib/me";
+import { navigate } from "../lib/router";
 import { Badge, Button, Card, Empty, ErrorBox, Loading, Page, toast } from "../ui";
 
 const CMD_ERR: Record<string, string> = {
@@ -141,39 +142,49 @@ export function Board() {
       </section>
 
       <h2 className="mt-2 text-base font-bold text-slate-600">櫃台</h2>
-      {counters.length === 0 && <Empty title="還沒有櫃台" text="請到「設定 → 櫃台」新增。" />}
+      {counters.length === 0 && (
+        <Empty
+          title="還沒有櫃台"
+          text="新增櫃台後才能叫號。"
+          action={
+            <Button kind="secondary" onClick={() => navigate("/counters")}>
+              前往新增櫃台
+            </Button>
+          }
+        />
+      )}
       {counters.map((c) => {
         const cur = list
           .filter((t) => (t.status === "called" || t.status === "serving") && t.counterId === c.id)
           .sort((a, b) => (b.calledAt ?? 0) - (a.calledAt ?? 0))[0];
         const st = cur ? STATUS[cur.status] : null;
         return (
-          <Card key={c.id} testId={`counter-card-${c.number}`}>
-            <div className="flex items-center justify-between gap-2">
-              <h3 className="text-lg font-bold">{c.name}</h3>
-              {st && <Badge tone={st.tone}>{st.text}</Badge>}
+          <Card key={c.id} className="!p-3" testId={`counter-card-${c.number}`}>
+            <div className="flex min-h-11 items-center gap-2">
+              <h3 className="shrink-0 text-base font-bold">{c.name}</h3>
+              {cur ? (
+                <>
+                  <span className="text-3xl font-black text-brand tabular-nums" data-testid={`counter-current-${c.number}`}>
+                    {cur.number}
+                  </span>
+                  <span className="min-w-0 flex-1 truncate text-base text-slate-700">{cur.name ?? ""}</span>
+                  {st && <Badge tone={st.tone}>{st.text}</Badge>}
+                </>
+              ) : (
+                <span className="flex-1 text-base text-slate-500">目前沒有號碼</span>
+              )}
             </div>
-            {cur ? (
-              <div className="mt-1 flex items-baseline gap-3">
-                <span className="text-4xl font-black text-brand tabular-nums" data-testid={`counter-current-${c.number}`}>
-                  {cur.number}
-                </span>
-                <span className="truncate text-base text-slate-700">{cur.name ?? "（未留姓名）"}</span>
-              </div>
-            ) : (
-              <p className="mt-1 text-base text-slate-500">目前沒有號碼</p>
-            )}
-            <div className="mt-3 grid grid-cols-3 gap-2">
-              <Button className="col-span-3" disabled={offline || !!busy} onClick={() => void send(`next-${c.id}`, "callNext", { counterId: c.id })} data-testid={`call-next-${c.number}`}>
+            <div className="mt-2 grid grid-cols-[2fr_1fr_1fr_1fr] gap-2">
+              <Button className="!px-2" disabled={offline || !!busy} onClick={() => void send(`next-${c.id}`, "callNext", { counterId: c.id })} data-testid={`call-next-${c.number}`}>
                 {busy === `next-${c.id}` ? "叫號中…" : "叫下一號"}
               </Button>
-              <Button kind="secondary" disabled={offline || !!busy || cur?.status !== "called"} onClick={() => cur && void send(`recall-${c.id}`, "recall", { ticketId: cur.id })}>
+              <Button kind="secondary" className="!px-1" disabled={offline || !!busy || cur?.status !== "called"} onClick={() => cur && void send(`recall-${c.id}`, "recall", { ticketId: cur.id })}>
                 重叫
               </Button>
-              <Button kind="secondary" disabled={offline || !!busy || cur?.status !== "called"} onClick={() => cur && void send(`skip-${c.id}`, "skip", { ticketId: cur.id })}>
+              <Button kind="secondary" className="!px-1" disabled={offline || !!busy || cur?.status !== "called"} onClick={() => cur && void send(`skip-${c.id}`, "skip", { ticketId: cur.id })}>
                 過號
               </Button>
-              <Button kind="secondary" disabled={offline || !!busy || !cur} onClick={() => cur && void send(`finish-${c.id}`, "finish", { ticketId: cur.id })}>
+              <Button kind="secondary" className="!px-1" disabled={offline || !!busy || !cur} onClick={() => cur && void send(`finish-${c.id}`, "finish", { ticketId: cur.id })}>
                 完成
               </Button>
             </div>

@@ -50,7 +50,7 @@ export function Devices() {
       <div className="min-w-0 flex-1">
         <p className="truncate text-base font-bold">{d.name}</p>
         <p className="text-sm text-slate-500">
-          {d.kind === "display" ? (d.client ? CLIENT[d.client] ?? d.client : "尚未連線") : "人員手機"} · {new Date(d.createdAt).toLocaleDateString("zh-TW")} 配對
+          {d.kind === "display" ? (d.client ? CLIENT[d.client] ?? d.client : "叫號面板") : "人員手機"} · {new Date(d.createdAt).toLocaleDateString("zh-TW")} 配對
         </p>
         {d.kind === "display" && d.audio === "blocked" && (
           <p className="mt-1">

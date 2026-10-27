@@ -2,7 +2,7 @@
 import { useRef, useState } from "react";
 import { api } from "../lib/api";
 import { inspect, mb, upload, type Inspected } from "../lib/upload";
-import { Badge, Button, Card, Confirm, Empty, ErrorBox, Field, inputCls, Loading, Page, Sheet, Toggle, errText, toast, useLoad } from "../ui";
+import { Badge, Button, Card, Confirm, Empty, ErrorBox, Field, inputCls, Loading, Page, Sheet, Toggle, errText, revealError, toast, useLoad } from "../ui";
 
 interface Item {
   itemId: string;
@@ -123,7 +123,7 @@ export function Ads() {
                 </div>
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-base font-bold" title={it.name ?? ""}>
-                    {it.name ?? (it.kind === "image" ? "圖片" : "影片")}
+                    {it.name ?? `${it.kind === "image" ? "圖片" : "影片"} ${i + 1}`}
                   </p>
                   <p className="text-sm text-slate-600 tabular-nums">
                     {it.kind === "image" ? `${Math.round((it.imageMs ?? 8000) / 1000)} 秒` : `影片 ${Math.round((it.videoMs ?? 0) / 1000)} 秒`} · {mb(it.bytes)}
@@ -182,6 +182,7 @@ export function Ads() {
 
 function UploadSheet({ it, onClose, onDone }: { it: Inspected; onClose: () => void; onDone: () => void }) {
   const [name, setName] = useState(it.file.name.slice(0, 80));
+  const [noPreview, setNoPreview] = useState(false);
   const [progress, setProgress] = useState<number | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const blocked = it.errors.length > 0;
@@ -209,9 +210,14 @@ function UploadSheet({ it, onClose, onDone }: { it: Inspected; onClose: () => vo
         </Button>
       }
     >
-      <div className="aspect-[3/2] w-full overflow-hidden rounded-xl bg-slate-900">
-        {it.kind === "image" && <img src={it.previewUrl} alt="預覽" className="h-full w-full object-contain" />}
-        {it.kind === "video" && <video src={it.previewUrl} className="h-full w-full object-contain" muted controls playsInline />}
+      <div className="flex aspect-[3/2] w-full items-center justify-center overflow-hidden rounded-xl bg-slate-900">
+        {noPreview || !it.kind || (it.errors.length > 0 && !it.width) ? (
+          <span className="text-base text-white/70">無法預覽這個檔案</span>
+        ) : it.kind === "image" ? (
+          <img src={it.previewUrl} alt="預覽" className="h-full w-full object-contain" onError={() => setNoPreview(true)} />
+        ) : (
+          <video src={it.previewUrl} className="h-full w-full object-contain" muted controls playsInline onError={() => setNoPreview(true)} />
+        )}
       </div>
       <p className="text-base text-slate-600 tabular-nums">
         {it.kind === "video" ? "影片" : it.kind === "image" ? "圖片" : "檔案"} · {mb(it.file.size)}
@@ -268,6 +274,7 @@ function EditSheet({ it, onClose, onSaved }: { it: Item; onClose: () => void; on
   async function save() {
     if (secErr || timeErr || dowErr || dateErr) {
       setErr("請修正紅色欄位");
+      revealError();
       return;
     }
     setBusy(true);

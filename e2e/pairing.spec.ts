@@ -14,6 +14,9 @@ test("面板配對 → 叫號畫面；超過上限被拒；解除配對 → 面�
   await display.goto(URLS.display + "/");
   await display.getByTestId("pair-code").waitFor();
   await shot(display, "pair-01-display-code");
+  // 回歸（S16）：配對碼一行顯示，不斷成兩行
+  const fs = await display.getByTestId("pair-code").evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
+  expect((await display.getByTestId("pair-code").boundingBox())!.height).toBeLessThan(fs * 2);
   const code = ((await display.getByTestId("pair-code").textContent()) ?? "").replace(/\s/g, "");
   expect(code).toMatch(/^\d{6}$/);
   // 面板沒有任何需要輸入的欄位（遙控器即可完成）

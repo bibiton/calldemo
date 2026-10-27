@@ -8,7 +8,7 @@ export function Page({
   actions,
   children,
   footer,
-  tabs = true,
+  tabs,
   testId,
 }: {
   title: string;
@@ -19,6 +19,8 @@ export function Page({
   tabs?: boolean;
   testId?: string;
 }) {
+  // 子頁（有返回鍵）不顯示底部分頁列：小螢幕上把空間留給內容與儲存列
+  tabs ??= !back;
   return (
     <div className="mx-auto flex min-h-full max-w-2xl flex-col" data-testid={testId}>
       <header className="sticky top-0 z-30 flex min-h-14 items-center gap-1 bg-brand px-2 text-white shadow-sm">
@@ -261,7 +263,7 @@ export function ToastHost() {
   if (!t) return null;
   return (
     <div
-      className={`fixed inset-x-4 bottom-[calc(5rem+env(safe-area-inset-bottom))] z-[60] mx-auto max-w-md rounded-xl px-4 py-3 text-center text-base font-bold text-white shadow-lg ${t.kind === "ok" ? "bg-emerald-700" : "bg-red-700"}`}
+      className={`pointer-events-none fixed inset-x-4 top-[calc(4rem+env(safe-area-inset-top))] z-[60] mx-auto max-w-md rounded-xl px-4 py-3 text-center text-base font-bold text-white shadow-lg ${t.kind === "ok" ? "bg-emerald-700" : "bg-red-700"}`}
       role="status"
       data-testid="toast"
     >
@@ -310,3 +312,12 @@ export const ERR_TEXT: Record<string, string> = {
   SIZE_MISMATCH: "上傳中斷，請重新上傳。",
 };
 export const errText = (e: any, fallback = "操作失敗，請稍後再試。") => ERR_TEXT[e?.code] ?? fallback;
+
+/** 送出失敗時把第一個錯誤欄位（或錯誤訊息）捲到畫面中央，避免錯誤在畫面外看不到。 */
+export function revealError(): void {
+  requestAnimationFrame(() => {
+    const el = document.querySelector<HTMLElement>('[aria-invalid="true"], [role="alert"]');
+    el?.scrollIntoView({ block: "center", behavior: "smooth" });
+    if (el && (el.tagName === "INPUT" || el.tagName === "SELECT")) el.focus({ preventScroll: true });
+  });
+}

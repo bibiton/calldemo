@@ -17,7 +17,8 @@ export interface Inspected {
   previewUrl: string;
 }
 
-export const mb = (n: number) => `${(n / 1024 / 1024).toFixed(n >= 10 * 1024 * 1024 ? 0 : 1)} MB`;
+export const mb = (n: number) =>
+  n < 1024 * 1024 ? `${Math.max(1, Math.round(n / 1024))} KB` : `${(n / 1024 / 1024).toFixed(n >= 10 * 1024 * 1024 ? 0 : 1)} MB`;
 
 function meta(file: File, kind: "image" | "video", url: string): Promise<{ w: number; h: number; ms: number | null }> {
   return new Promise((resolve, reject) => {

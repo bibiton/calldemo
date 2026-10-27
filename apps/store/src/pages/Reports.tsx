@@ -23,7 +23,7 @@ interface Row {
   peakHour: number | null;
 }
 
-const min = (ms: number | null) => (ms == null ? "—" : `${(ms / 60_000).toFixed(1)} 分`);
+const min = (ms: number | null) => (ms == null ? "—" : ms < 60_000 ? "不到 1 分" : `${(ms / 60_000).toFixed(1)} 分`);
 const ymd = (d: Date) => d.toISOString().slice(0, 10);
 
 function range(days: number, today: string) {
@@ -149,7 +149,7 @@ export function Reports() {
           ))}
         </>
       )}
-      <Button kind="secondary" onClick={() => void csv()} disabled={dl || !bd} data-testid="csv">
+      <Button kind="secondary" onClick={() => void csv()} disabled={dl || !bd || rows.length === 0} data-testid="csv">
         {dl ? "匯出中…" : `⬇ 匯出近 ${days} 天 CSV`}
       </Button>
     </Page>

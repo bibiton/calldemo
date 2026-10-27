@@ -14,6 +14,16 @@ import { Button, Card, ErrorBox, inputCls, Loading, Page, Toggle, errText, toast
 
 type Pack = { key: string; name: string; note?: string; prefixKeys: string[] };
 
+/** manifest 的 note 是給素材維護者看的（含 venue=food、manualOnly 等術語），店長看的說明在這裡。 */
+const PACK_NOTE: Record<string, string> = {
+  hungry: "餐飲業限定",
+  waited: "感謝耐心等候",
+  anticipation: "好事要發生了",
+  warm: "歡迎與感謝",
+  festival: "天氣與節日，建議當季／當天再開啟",
+};
+const plain = (s: string) => s.replace(/[（(][^）)]*[A-Za-z=][^）)]*[）)]/g, "").trim();
+
 export function Voice() {
   const me = useMe();
   const [manifest, setManifest] = useState<Manifest | null>(null);
@@ -163,7 +173,7 @@ export function Voice() {
                         <span className="block text-base font-bold">
                           {p.name} <span className="font-normal text-slate-500">{ls.length} 句</span>
                         </span>
-                        <span className="block text-sm text-slate-500">{blocked ? "餐飲業才會使用" : p.note}</span>
+                        <span className="block text-sm text-slate-500">{blocked ? "餐飲業才會使用" : PACK_NOTE[p.key] ?? plain(p.note ?? "")}</span>
                       </span>
                     </label>
                     <PlayBtn id={`pack-${p.key}`} keys={ls.length ? [ls[Math.floor(Math.random() * ls.length)].key] : []} label={`試聽${p.name}`} />
@@ -197,7 +207,7 @@ export function Voice() {
           <select className={`${inputCls} flex-1`} value={v.chime} onChange={(e) => setV({ ...v, chime: e.target.value })} aria-label="叮咚音效" data-testid="chime">
             {chimes.map((c) => (
               <option key={c.key} value={c.key}>
-                {c.text}
+                {plain(c.text)}
               </option>
             ))}
           </select>

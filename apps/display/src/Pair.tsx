@@ -82,18 +82,18 @@ export function PairScreen({ onPaired }: { onPaired: (token: string) => void }) 
     };
   }, [p, onPaired]);
 
-  const left = p ? Math.max(0, Math.ceil((p.expiresAt - now) / 1000)) : 0;
+  const left = p ? Math.min(600, Math.max(0, Math.ceil((p.expiresAt - now) / 1000))) : 0;
   return (
     <main className="flex h-full flex-col items-center justify-center gap-[3vh] bg-brand px-[6vw] text-center text-white" data-testid="pair-screen">
       <h1 className="text-[4.2vh] font-black">叫號面板配對</h1>
       <p className="max-w-[86vw] text-[2.4vh] leading-relaxed text-white/85">
-        請店長用手機開啟「門店後台 → 設定 → 裝置」，輸入下方配對碼，
+        請店長用手機開啟門店後台的「裝置」頁，
         <br />
-        或直接用手機掃描 QR Code。
+        輸入下方配對碼，或直接掃描 QR Code。
       </p>
       {p ? (
         <>
-          <p className="rounded-[2vw] bg-white px-[5vw] py-[2vh] text-[11vh] leading-none font-black tracking-[0.12em] text-brand tabular-nums" data-testid="pair-code">
+          <p className="rounded-[2vw] bg-white px-[5vw] py-[2vh] text-[8.5vh] leading-none font-black tracking-[0.1em] whitespace-nowrap text-brand tabular-nums" data-testid="pair-code">
             {p.code.slice(0, 3)} {p.code.slice(3)}
           </p>
           <div className="h-[24vh] w-[24vh] rounded-[1.5vw] bg-white p-[1vh]" data-testid="pair-qr">

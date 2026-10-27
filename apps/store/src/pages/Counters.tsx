@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { api } from "../lib/api";
 import { invalidateMe } from "../lib/me";
-import { Badge, Button, Card, Confirm, Empty, ErrorBox, Field, inputCls, Loading, Page, Sheet, Toggle, errText, toast, useLoad } from "../ui";
+import { Badge, Button, Card, Confirm, Empty, ErrorBox, Field, inputCls, Loading, Page, Sheet, Toggle, errText, revealError, toast, useLoad } from "../ui";
 
 interface Ctr {
   id: string;
@@ -96,13 +96,14 @@ function CounterSheet({ d, services, onClose, onSaved }: { d: Draft; services: S
   const [touched, setTouched] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [taken, setTaken] = useState<string | null>(null);
   const nameErr = !v.name.trim() ? "請輸入名稱" : [...v.name.trim()].length > 20 ? "最多 20 字" : null;
-  const numErr = !/^\d{1,2}$/.test(v.number) || Number(v.number) < 1 ? "請輸入 1～99（語音會唸這個號碼）" : null;
+  const numErr = !/^\d{1,2}$/.test(v.number) || Number(v.number) < 1 ? "請輸入 1～99（語音會唸這個號碼）" : taken === v.number ? "這個櫃台號碼已經存在" : null;
   const toggleSvc = (id: string) => setV({ ...v, serviceIds: v.serviceIds.includes(id) ? v.serviceIds.filter((x) => x !== id) : [...v.serviceIds, id] });
 
   async function save() {
     setTouched(true);
-    if (nameErr || numErr) return;
+    if (nameErr || numErr) return revealError();
     setBusy(true);
     setErr(null);
     try {
@@ -112,8 +113,9 @@ function CounterSheet({ d, services, onClose, onSaved }: { d: Draft; services: S
       });
       toast("已儲存");
       onSaved();
-    } catch (e) {
-      setErr(errText(e));
+    } catch (e: any) {
+      if (e?.code === "NUMBER_TAKEN") setTaken(v.number);
+      else setErr(errText(e));
       setBusy(false);
     }
   }
@@ -123,7 +125,7 @@ function CounterSheet({ d, services, onClose, onSaved }: { d: Draft; services: S
       <Field label="名稱" error={touched ? nameErr : null}>
         <input className={inputCls} value={v.name} maxLength={20} onChange={(e) => setV({ ...v, name: e.target.value })} aria-invalid={touched && !!nameErr} data-testid="ctr-name" />
       </Field>
-      <Field label="櫃台號碼" hint="叫號語音：「請到 N 號櫃台」" error={touched ? numErr : null}>
+      <Field label="櫃台號碼" hint="叫號語音：「請到 N 號櫃台」" error={touched || taken ? numErr : null}>
         <input className={inputCls} inputMode="numeric" value={v.number} onChange={(e) => setV({ ...v, number: e.target.value.replace(/\D/g, "").slice(0, 2) })} aria-invalid={touched && !!numErr} data-testid="ctr-number" />
       </Field>
       <fieldset className="flex flex-col gap-1">

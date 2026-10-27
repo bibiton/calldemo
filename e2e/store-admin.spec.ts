@@ -11,7 +11,9 @@ test.describe.configure({ mode: "serial" });
 
 async function check(page: Page, name: string, fullPage = true) {
   await page.waitForTimeout(200);
-  await shot(page, name, fullPage);
+  // 視窗截圖（固定的底部列在真實位置）；頁面比視窗長時另存整頁（整頁截圖中固定元素會出現在中段，屬截圖產物）
+  await shot(page, name, false);
+  if (fullPage && (await page.evaluate(() => document.documentElement.scrollHeight > innerHeight + 4))) await shot(page, `${name}-full`, true);
   expect(await layoutIssues(page), name).toEqual([]);
 }
 
@@ -92,13 +94,16 @@ test("即時隊列：等候數／櫃台目前號碼／代操作叫號（面板 1
   await expect(page.getByTestId("audio-alert")).toContainText("叫號機無法出聲");
   await expect(page.getByTestId("queue-list")).toContainText("林小華");
   await check(page, "store-04-board");
+  // 回歸（S2）：櫃台卡片精簡為一列操作，手機上不把等候清單擠到很下面
+  for (const n of [1, 2, 3]) expect((await page.getByTestId(`counter-card-${n}`).boundingBox())!.height).toBeLessThanOrEqual(150);
   const before = await page.getByTestId("queue-list").locator("li").count();
-  const first = (await page.getByTestId("queue-list").locator("li").first().locator("span").first().textContent())!.trim();
   const t0 = Date.now();
   await page.getByTestId("call-next-1").click();
-  await expect(display.getByTestId("current-number")).toHaveText(first);
+  // 叫到的是 1 號櫃台可叫的下一位（可能不是清單第一位：有指定其他櫃台的號碼）
+  await page.getByTestId("counter-current-1").waitFor();
+  const called = (await page.getByTestId("counter-current-1").textContent())!.trim();
+  await expect(display.getByTestId("current-number")).toHaveText(called);
   expect(Date.now() - t0).toBeLessThan(1000);
-  await expect(page.getByTestId("counter-current-1")).toHaveText(first);
   await expect(page.getByTestId("queue-list").locator("li")).toHaveCount(before - 1);
   await check(page, "store-05-board-called");
 
@@ -161,7 +166,8 @@ test("3.1 服務類別：新增（含驗證錯誤）、字首重複、編輯停�
   await page.getByTestId("svc-prefix").fill("a");
   await expect(page.getByTestId("svc-prefix")).toHaveValue("A");
   await page.getByTestId("save").click();
-  await expect(page.getByTestId("sheet-error")).toContainText("字首已經被其他服務類別使用");
+  await expect(page.getByTestId("service-sheet").getByRole("alert")).toContainText("字首已經被其他服務類別使用");
+  await expect(page.getByTestId("svc-prefix")).toHaveAttribute("aria-invalid", "true");
   await check(page, "store-10-service-duplicate", false);
   await page.getByTestId("svc-name").fill("繳費");
   await page.getByTestId("svc-prefix").fill("C");
@@ -175,6 +181,10 @@ test("3.1 服務類別：新增（含驗證錯誤）、字首重複、編輯停�
   await expect(page.getByTestId("service-C")).toContainText("已停用");
   await page.getByTestId("service-C").getByRole("button", { name: "刪除" }).click();
   await page.getByTestId("confirm").waitFor();
+  // 回歸（S5）：成功提示在上方，不蓋住確認視窗的說明文字
+  const toastBox = await page.getByTestId("toast").boundingBox().catch(() => null);
+  const confirmBox = (await page.getByTestId("confirm").boundingBox())!;
+  if (toastBox) expect(toastBox.y + toastBox.height).toBeLessThanOrEqual(confirmBox.y);
   await check(page, "store-11-service-delete-confirm", false);
   await page.getByTestId("confirm-ok").click();
   await expect(page.getByTestId("service-C")).toHaveCount(0);
@@ -189,7 +199,7 @@ test("3.1 櫃台：新增（可服務類別）、號碼重複提示、刪除", a
   await page.getByTestId("add-counter").click();
   await page.getByTestId("ctr-number").fill("1");
   await page.getByTestId("save").click();
-  await expect(page.getByTestId("sheet-error")).toContainText("櫃台號碼已經存在");
+  await expect(page.getByTestId("counter-sheet").getByRole("alert")).toContainText("櫃台號碼已經存在");
   await page.getByTestId("ctr-number").fill("");
   await page.getByTestId("save").click();
   await expect(page.getByText("請輸入 1～99")).toBeVisible();
@@ -263,6 +273,8 @@ test("3.3 叫號語音：試聽在手機播放；改成標準版＋鐘聲＋唸 
   const page = await storeLogin(browser, s);
   await go(page, "/voice", "voice");
   await check(page, "store-19-voice");
+  // 回歸（S8）：不出現素材維護用的術語
+  expect(await page.getByTestId("voice").innerText()).not.toMatch(/venue=|manualOnly|E5→C5/);
   await page.getByTestId("pack-open-waited").click();
   await check(page, "store-20-voice-lines");
   await page.getByTestId("play-full").click();
@@ -330,6 +342,7 @@ test("3.4 廣告：上傳（進度、3:2 提示、超過大小／格式前端擋
   await page.getByTestId("ad-item").first().waitFor();
   const n0 = await page.getByTestId("ad-item").count();
   await check(page, "store-24-ads");
+  expect(await page.getByTestId("ads").innerText()).not.toContain("0.0 MB"); // 回歸（S10）：小檔顯示 KB
   const manifest = async () => (await fetch(`${URLS.api}/api/display/ads/manifest`, { headers: { authorization: `Bearer ${s.displayToken}` } })).json();
   const v0 = (await manifest()).version;
 
@@ -418,6 +431,7 @@ test("空狀態：新門店（無櫃台／人員／裝置／廣告／歷史）�
   ] as const) {
     await go(page, path, id);
     await expect(page.getByTestId("empty").first()).toBeVisible();
+    if (id === "reports") await expect(page.getByTestId("csv")).toBeDisabled(); // 回歸（S15）
     await check(page, name);
   }
   await page.context().close();

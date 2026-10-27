@@ -60,7 +60,7 @@ export function StaffPair({ onPaired, notice }: { onPaired: (token: string) => v
     };
   }, [p, onPaired]);
 
-  const left = p ? Math.max(0, Math.ceil((p.expiresAt - now) / 1000)) : 0;
+  const left = p ? Math.min(600, Math.max(0, Math.ceil((p.expiresAt - now) / 1000))) : 0;
   return (
     <main className="mx-auto flex min-h-full max-w-md flex-col bg-white" data-testid="staff-pair">
       <header className="bg-brand px-4 py-4 text-white">

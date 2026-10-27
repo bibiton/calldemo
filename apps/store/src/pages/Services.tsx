@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { api } from "../lib/api";
 import { invalidateMe } from "../lib/me";
-import { Badge, Button, Card, Confirm, Empty, ErrorBox, Field, inputCls, Loading, Page, Sheet, Toggle, errText, toast, useLoad } from "../ui";
+import { Badge, Button, Card, Confirm, Empty, ErrorBox, Field, inputCls, Loading, Page, Sheet, Toggle, errText, revealError, toast, useLoad } from "../ui";
 
 interface Svc {
   id: string;
@@ -95,15 +95,16 @@ function ServiceSheet({ d, onClose, onSaved }: { d: Draft; onClose: () => void; 
   const [touched, setTouched] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [taken, setTaken] = useState<string | null>(null);
   const nameErr = !v.name.trim() ? "請輸入名稱" : [...v.name.trim()].length > 20 ? "最多 20 字" : null;
-  const prefixErr = !/^[A-Z]{1,2}$/.test(v.prefix) ? "請輸入 1～2 個英文大寫字母" : null;
+  const prefixErr = !/^[A-Z]{1,2}$/.test(v.prefix) ? "請輸入 1～2 個英文大寫字母" : taken === v.prefix ? "這個字首已經被其他服務類別使用" : null;
   const sortErr = !/^\d{1,3}$/.test(v.sortOrder) ? "請輸入 0～999" : null;
   const limitErr = v.dailyLimit && !/^\d{1,4}$/.test(v.dailyLimit) ? "請輸入 1～9999，或留空表示不限" : v.dailyLimit === "0" ? "請輸入 1～9999，或留空表示不限" : null;
   const bad = nameErr || prefixErr || sortErr || limitErr;
 
   async function save() {
     setTouched(true);
-    if (bad) return;
+    if (bad) return revealError();
     setBusy(true);
     setErr(null);
     const body = { name: v.name.trim(), prefix: v.prefix, sortOrder: Number(v.sortOrder), dailyLimit: v.dailyLimit ? Number(v.dailyLimit) : null, enabled: v.enabled };
@@ -111,8 +112,9 @@ function ServiceSheet({ d, onClose, onSaved }: { d: Draft; onClose: () => void; 
       await api(v.id ? `/api/store/services/${v.id}` : "/api/store/services", { method: v.id ? "PUT" : "POST", json: body });
       toast("已儲存");
       onSaved();
-    } catch (e) {
-      setErr(errText(e));
+    } catch (e: any) {
+      if (e?.code === "PREFIX_TAKEN") setTaken(v.prefix);
+      else setErr(errText(e));
       setBusy(false);
     }
   }
@@ -131,14 +133,14 @@ function ServiceSheet({ d, onClose, onSaved }: { d: Draft; onClose: () => void; 
       <Field label="名稱" error={touched ? nameErr : null}>
         <input className={inputCls} value={v.name} maxLength={20} onChange={(e) => setV({ ...v, name: e.target.value })} aria-invalid={touched && !!nameErr} data-testid="svc-name" placeholder="例如：內用" />
       </Field>
-      <Field label="字首" hint="號碼開頭的英文字母，例如 A → A001。A～F 語音最自然。" error={touched ? prefixErr : null}>
+      <Field label="字首" hint="號碼開頭的英文字母，例如 A → A001。A～F 語音最自然。" error={touched || taken ? prefixErr : null}>
         <input
           className={`${inputCls} uppercase`}
           value={v.prefix}
           maxLength={2}
           autoCapitalize="characters"
           onChange={(e) => setV({ ...v, prefix: e.target.value.toUpperCase().replace(/[^A-Z]/g, "") })}
-          aria-invalid={touched && !!prefixErr}
+          aria-invalid={(touched || !!taken) && !!prefixErr}
           data-testid="svc-prefix"
         />
       </Field>
