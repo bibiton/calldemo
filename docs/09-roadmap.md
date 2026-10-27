@@ -34,14 +34,14 @@
 
 | # | 狀態 | 說明 |
 |---|---|---|
-| 0.1 | ⏳ | 最小 DO＝`StoreQueueDO`（acceptWebSocket、auto-response、關店 alarm）已寫且本機測試通過；**部署 正式環境 連 5 條 WS 過夜看 Duration 平線未做**（本階段不部署） |
+| 0.1 | ⏳ | 最小 DO＝`StoreQueueDO`（acceptWebSocket、auto-response、關店 alarm）已寫且本機測試通過；**2026-10-27 已部署到正式環境**（smoke 以 `smoke-ws.mjs` 驗證 hello＋`ping`→`pong`）。**連 WS 過夜看 Duration 夜間平線尚未做** |
 | 0.2 | ✅ | `apps/api/test/m0-runtime.test.ts`；結果寫入 11-local-testing §1 |
 | 0.3 | ⏳ | 本機 workerd 實測 100,000／100,001／600,000 皆可用（不限制）；production 上限待 正式環境；結果寫入 06-auth |
 | 0.4 | ⏳ | VAPID（ES256）＋aes128gcm 已以純 WebCrypto 實作（M2），RFC 8291 附錄 A 測試向量逐位元通過、E2E 經本機假推播端點解密驗證；**Android／iPhone 實機收推播未做**（需 正式環境 HTTPS） |
 | 0.5 | ❌ | 需 Cloudflare 帳號 API token 做 GraphQL introspection；本階段不使用真實帳號 |
 | 0.6 | ⏳ | 1080×1920 版面量測 QR 本體＝39% 螢幕寬（E2E 斷言 ≥ 38%）；2～3 公尺實機掃描未做 |
 | 1.1 | ✅ | pnpm monorepo（api／admin／store／staff／display／customer＋shared）；`pnpm dev` 起 8787＋5171～5175 六個 port 實測可開；T12 靜態檢查腳本＋CI workflow |
-| 1.2 | ⏳ | `migrations/0001_init.sql`＋`apps/api/scripts/seed-local.mjs`；本機 `wrangler d1 migrations list` 顯示已套用；正式環境 未套用 |
+| 1.2 | ⏳ | `migrations/0001_init.sql`＋`apps/api/scripts/seed-local.mjs`；本機 `wrangler d1 migrations list` 顯示已套用；正式環境 2026-10-27 由 bootstrap／deploy 套用（`wrangler d1 migrations apply --remote`） |
 | 1.3 | ✅ | T1、T2、T5、T6、T11 及狀態機全部指令測試通過 |
 | 1.4 | ✅ | T3、T4、裝置／人員／顧客 token、WS upgrade 轉交；平台管理 API 只有本機繞過（Access JWT 驗證屬 M4 4.1） |
 | 1.5 | ⏳ | T7、T8 Vitest 通過；手機實機掃描未做 |
@@ -112,13 +112,13 @@
 
 | # | 狀態 | 說明 |
 |---|---|---|
-| 4.1 | ⏳ | Worker 驗 Access JWT（`Cf-Access-Jwt-Assertion`／`CF_Authorization`；RS256＋JWKS 快取與輪替、aud、iss、exp、nbf、拒絕 alg 混淆）＋ `ACCESS_ALLOWED_EMAILS` 再比一次（production 名單為空即拒絕）；本機 `DEV_BYPASS_ACCESS` 只在 `ENV=local`、production 帶旗標整個 Worker 500。兩種模式皆有 Vitest（`access.test.ts`）。寫入需 `x-qcs-admin`＋Origin 檢查（CSRF，ADR-047）。**Access 應用與 One-time PIN 實測、`call-admin.jjoy.ai/api/*` route 優先於 Pages 待部署後** |
+| 4.1 | ⏳ | Worker 驗 Access JWT（`Cf-Access-Jwt-Assertion`／`CF_Authorization`；RS256＋JWKS 快取與輪替、aud、iss、exp、nbf、拒絕 alg 混淆）＋ `ACCESS_ALLOWED_EMAILS` 再比一次（production 名單為空即拒絕）；本機 `DEV_BYPASS_ACCESS` 只在 `ENV=local`、production 帶旗標整個 Worker 500。兩種模式皆有 Vitest（`access.test.ts`）。寫入需 `x-qcs-admin`＋Origin 檢查（CSRF，ADR-047）。**正式網址（2026-10-27）部分驗證**：bootstrap 建立 Access 應用 `call-admin`＋policy `call-admin-allow`；未登入 `call-admin.jjoy.ai` 與其 `/api/*` 皆 302 到 Access（route 優先於前端 Worker 的 Custom Domain，ADR-050）、直打 `call-api.jjoy.ai/api/admin/me` 回 401；Access 登入頁顯示 email 驗證碼。**名單內 email 實際以 One-time PIN 登入、名單外 email 被拒：待人工驗證** |
 | 4.2 | ⏳ | 總後台 API＋手機直版前端：品牌、建立門店（初始密碼只顯示一次）、列表（搜尋、狀態篩選、警示優先）、詳情、停用／恢復、到期（＋30 天／＋1 年／不到期）、面板／人員上限、功能開關（含「內部測試門店」）、廣告容量、店長帳號（新增／重設密碼／停用）、封存刪除（ADR-043）、稽核查詢。寫入即同步 KV＋DO：停用與到期 WS 立即 4003（Vitest）。面板在線來自 DO、無法出聲 > 5 分鐘警示（ADR-045）。**正式環境 60 秒內各節點 403 待實測** |
 | 4.3 | ⏳ | 每請求 AE data point（mock binding 測）、DO 計數（rpc／alarms／rowsW）併入既有 state 列、非營業時間喚醒寫 AE、推播每批依店計數、`usage_hourly`→`daily`→`monthly`、Cron 分派、查詢時補算（ADR-044）。**T18 通過**（開／關計量 rows written、alarm、meta 列相同）。**與 Cloudflare 帳號數字誤差 < 20% 需正式環境跑一週比對；係數（每事件 0.05 秒等）待校正；GraphQL 預填帳單未做（需 0.5）** |
 | 4.4 | ⏳ | 用量與成本頁（實際／估算並列、活躍店數、每店平均、排行 3 種、30 日趨勢、警示 6 種）、每店用量頁（今日 AE 即時、本月、30 日長條＋每日明細）、帳單輸入與分攤（12 項、月費由活躍門店平均）、CSV（每月／每日，BOM、防公式注入）。**人為製造夜間喚醒 → 警示：Vitest 以真 DO 驅逐／喚醒 12 次重現並通過**；正式環境實測待部署 |
 | 5.1 | ⏳ | `scripts/load/local-load.mjs` 本機實測（300 號／5 分鐘＋50 面板，SMOKE1）：取號 p95 20 ms、**叫號到全部 50 面板 p95 8 ms**、0 錯誤；10 倍尖峰（30 秒 300 號）p95 7 ms。本機為單一 workerd 行程，只代表程式無瓶頸。**k6 版 `scripts/load/k6-call.js` 待部署後對正式環境跑** |
 | 5.2 | ⏳ | T13＋`m5.test.ts`：QR 取號→叫號→查看手機→完成＋人員代取號→關店→q-history 後，D1 **每張表每一欄**都找不到姓名／手機原文，DO 原文已清空。`scripts/pii-check.sh`（本機已跑通過；正式環境抽查待部署） |
-| 5.3 | ✅ | 獨立安全審查（無 CRITICAL／HIGH；3 MEDIUM、5 LOW 全部修正，見 ADR-047）；`check-secrets.mjs` 納入 `pnpm test`；CORS 白名單測試；每店 PIN 失敗限流（ADR-046）；錯誤不洩漏內部訊息；Pages 安全標頭（nosniff、DENY frame、Referrer-Policy、Permissions-Policy）；部署腳本 `call-` 安全閘與憑證隔離（ADR-049） |
+| 5.3 | ✅ | 獨立安全審查（無 CRITICAL／HIGH；3 MEDIUM、5 LOW 全部修正，見 ADR-047）；`check-secrets.mjs` 納入 `pnpm test`；CORS 白名單測試；每店 PIN 失敗限流（ADR-046）；錯誤不洩漏內部訊息；前端 `_headers` 安全標頭（nosniff、DENY frame、Referrer-Policy、Permissions-Policy；ADR-050 改 assets-only Worker 後照樣生效）；部署腳本 `call-` 安全閘與憑證隔離（ADR-049） |
 | 5.4 | ⏳ | 需正式環境連續 3 晚 DO Duration（dashboard）；DO 夜間喚醒 AE 點與總後台警示已就緒，可作為輔助觀察 |
 | 業主追加 | ✅ | 同一毫秒取號排序（ADR-042，`queue-order.test.ts` 14 項）；顧客手機圖片（ADR-048，E2E 5 項）；部署命名 jjoy.ai／`call-`／只有正式環境（ADR-049） |
 
@@ -128,7 +128,7 @@
 |---|---|---|---|
 | 6.1 | `bootstrap.sh` | 在**全新 Cloudflare 帳號**從零跑完；再跑第二次全部顯示「已存在，略過」且 secrets 未被覆蓋 | 兩次執行紀錄 |
 | 6.2 | `deploy.sh`＋`smoke.sh` | 正常部署通過；故意部署壞版本時自動 rollback 且服務不中斷 | 正式環境 演練紀錄 |
-| 6.3 | `rollback.sh` | Worker 回到指定版本；Pages 回滾步驟實測並修正文件 | 演練紀錄 |
+| 6.3 | `rollback.sh` | Worker 回到指定版本；前端回滾（`--frontends`，ADR-050 改 Worker 後取代 Pages 回滾）實測並修正文件 | 演練紀錄 |
 | 6.4 | GitHub Actions | 只跑測試（憑證只在業主電腦的 cf.env，部署一律手動 `deploy.sh`，ADR-049） | Actions 紀錄 |
 | 6.5 | 業主教學實測 | 由非工程師依 10-deploy-guide 獨立完成正式環境佈署 | 過程中卡住的點全部回寫文件 |
 
@@ -137,9 +137,26 @@
 | # | 任務 | 完成條件 | 驗證方式 |
 |---|---|---|---|
 | 7.1 | 虛構品牌視覺（名稱商標檢索、SVG Logo、配色） | 無同名註冊商標衝突 | 檢索結果存檔 |
-| 7.2 | 蒐集 5～8 張廣告圖＋1～2 支直式短影片 | 全部符合規格；`demo/assets/SOURCES.md` 每張有來源 URL 與授權 | 人工逐張審核：無真實品牌元素、無可辨識人臉 |
-| 7.3 | `seed:demo` 腳本（本機／正式環境 DEMO 門店，`--reset`） | 重跑冪等；正式環境只動 `DEMO*` 門店並需 `--confirm`（只有一套環境，ADR-049；細節待 M7 定案） | 本機與正式環境各跑兩次 |
-| 7.4 | `demo:simulate` 腳本 | 面板連續 30 分鐘自動叫號，語音、廣告讓位正常 | 正式環境 實機錄影 |
+| 7.2 | 蒐集 5～8 張廣告圖＋1～2 支短影片 | 全部符合規格；`assets/demo/CREDITS.md` 每張有來源 URL 與授權 | 人工逐張審核：無真實品牌元素、無可辨識人臉 |
+| 7.3 | `seed:demo` 腳本（本機／正式環境 DEMO 門店，`--reset`） | 重跑冪等；正式環境只動 `DEMOSK*` 門店並需 `--confirm`（只有一套環境，ADR-049） | 本機與正式環境各跑兩次 |
+| 7.4 | 模擬叫號（原規劃 `demo:simulate` 腳本；ADR-051 改為伺服器端 DO alarm） | 面板連續 30 分鐘自動叫號，語音、廣告讓位正常 | 正式環境 實機錄影 |
+
+### M6／M7 實作狀態（2026-10-27）
+
+首次實際部署到共用 Cloudflare 帳號的 `*.jjoy.ai`。前端改 assets-only Worker、Analytics Engine 暫不綁定（ADR-050）；模擬叫號改 DO alarm（ADR-051）。
+正式網址截圖紀錄見 [visual-review-M6.md](visual-review-M6.md)。✅＝已在正式環境達成；⏳＝部分完成，剩餘項目列於說明。
+
+| # | 狀態 | 說明 |
+|---|---|---|
+| 6.1 | ✅ | `bootstrap.sh` 在**共用帳號**（不是全新帳號；其他產品的資源不受影響，全部 `call-` 安全閘）從零建出 D1／KV／R2（CORS、`call-media` 自訂網域）／4 Queues／migration／Worker／secrets／Access。**兩次執行皆有紀錄**：第二次既有資源顯示「已存在，略過」、金鑰類 secret 顯示「已存在，不覆蓋」，並補上 Access team domain。差異：token 無 Access Organizations 權限 → One-time PIN 不由腳本建立（登入頁預設已有 email 驗證碼）、team domain 改由登入導向讀取 |
+| 6.2 | ✅ | `deploy.sh`＋`smoke.sh` 正常部署通過（smoke 6 項：health 版本、WS hello／pong、5 前端、admin `/api/*` 擋、API 401、media CORS）。**自動回滾在一次真實失敗中觸發**（smoke 的 WebSocket 檢查失敗 → `wrangler rollback` 到前一版），非刻意部署壞版本。教訓：bootstrap 第一個 Worker 版本早於 `secret put`、不含 secrets，不可作為回滾目標（08 §4.2） |
+| 6.3 | ✅ | 回滾演練：部署 `33b408e` → `rollback.sh production <version-id>` → `/health` 回 `22f40c1`、smoke 6/6 通過；前端 `--frontends` 回滾以 `call-staff` 實測；再 `deploy.sh` 前滾回最新。文件已依實測修正（08 §4.3、10 步驟 14） |
+| 6.4 | ⏳ | `.github/workflows/ci.yml` 已存在：每次 push／PR 跑 hibernation 靜態檢查＋型別檢查＋`pnpm test`，不部署（ADR-049）。**GitHub 上的 Actions 執行紀錄本次未查看**；檔內註解「deploy.yml 屬 M6，尚未加入」已被 ADR-049 取代（不做 CI 部署） |
+| 6.5 | ⏳ | 10-deploy-guide 已依實際指令與輸出改寫；**仍需由非工程師獨立照做一次**並回寫卡住的點 |
+| 7.1 | ⏳ | 虛構品牌「鮮迴壽司／Senkai Sushi」、自製 SVG Logo（＋512 PNG）、配色（藏青 `#1F2A44`、紅 `#C8102E`）已完成；**TIPO 商標檢索「鮮迴」尚未做**（對外公開展示前必做，衝突就換名） |
+| 7.2 | ✅ | `assets/demo`：8 張廣告圖（1080×720 JPEG）＋2 支影片（1080×720 H.264、無音軌、約 14 秒）＋Logo；`CREDITS.md` 逐檔列來源頁、直連、作者、授權（Pexels License）、處理方式。**保留事項**：ad-06 作者名未完全查證（兩種拼法）；ad-03 以烤鯖魚照片示意秋刀魚；video-01 原片拍攝於真實迴轉壽司店，已裁掉人物與招牌、模糊菜單牌，仍有不可辨識的盤面小圖樣與無臉手臂 |
+| 7.3 | ✅ | `pnpm seed:demo`（本機）與 `pnpm seed:demo --env production --confirm`（正式）各跑兩次：UPSERT 冪等、密碼／PIN／裝置 token 沿用輸出檔；正式環境寫入前安全檢查（同 id／門店碼的非 DEMO 門店即中止）；裝置經真實 API 配對。`--reset`、`--skip-media` 已實作。**待辦**：正式環境櫃台名稱仍是第一次 seed 的「1 號櫃台（內用）」（人員端頁首換行），下次重跑 seed 會改成「1 號櫃台」 |
+| 7.4 | ⏳ | 伺服器端模擬叫號（ADR-051，`features.demoSimulate`、`DEMO_SIM_EVERY_SEC` 預設 20 秒）在正式網址運作：`pnpm e2e:prod` 的模擬叫號項目確認台北中山店面板自動出現叫號與語音事件。**實體電視連續 30 分鐘錄影（語音、廣告讓位）尚未做** |
 
 ## M8 — 叫號機 Android 包裝 App＋硬體建議清單（ADR-027）
 

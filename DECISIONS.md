@@ -430,3 +430,33 @@
 - **取代**：ADR-021（Pages 每環境一個專案）。08、10、11 的 staging 流程同步改為「部署後在正式網址驗證」。
 - **未查證**：Pages 自訂網域 API 端點、Access API（organizations／identity_providers／apps／policies）欄位與權限名稱、R2 CORS JSON 格式、
   KV namespace 標題是否被加 Worker 名前綴、R2 自訂網域在無 Cache Rule 時對影片的預設快取、wrangler 4.153 以外版本的憑證優先順序。均於 M6 首次部署時確認並回寫 08。
+
+---
+
+以下 ADR-050 起為 M6／M7 首次部署（2026-10-27）時補記。
+
+## ADR-050 前端改用 assets-only Worker（不用 Pages）；Analytics Engine 暫不綁定
+- **背景（首次部署實測）**：
+  1. 共用帳號建立第 5 個 Pages 專案時失敗：「You have reached the limit of projects you can have on your account」（帳號原有 10 個專案，建到第 14 個即達上限）。
+     繼續用 Pages 會把共用帳號剩下的 Pages 名額全部用光，其他產品（noah、ecshop…）之後無法再建 Pages 專案。
+  2. wrangler 4.153 的 `pages project create` 已改走「Pages 併入 Workers」的新流程，沒有靜態檔目錄時失敗。
+  3. `wrangler deploy` 回 10089「You need to enable Analytics Engine」：帳號未啟用 AE。
+- **查證**（2026-10-27）：Workers 靜態資源「Requests to static assets are free and unlimited」（[billing-and-limitations](https://developers.cloudflare.com/workers/static-assets/billing-and-limitations/)）；
+  每版本檔案數 Paid 100,000／Free 20,000、單檔 25 MiB，帳號 Worker 數 Paid 500（[limits](https://developers.cloudflare.com/workers/platform/limits/)）；
+  靜態資源支援 `_headers`（最多 100 條，[headers](https://developers.cloudflare.com/workers/static-assets/headers/)）；
+  同一 hostname 的 Worker route 優先於 Custom Domain（[custom-domains](https://developers.cloudflare.com/workers/configuration/routing/custom-domains/)）→ ADR-047 的 `call-admin.jjoy.ai/api/*` route 照樣生效（正式網址實測：未登入 302 到 Access、登入後由 API Worker 回應）。
+- **選項**：A 只把 call-q 改 Worker、其餘 4 個留 Pages（佔滿共用帳號 Pages 名額、兩套部署與回滾流程）；B 5 個前端全部改 assets-only Worker；C 合併前端到同一 Pages 專案（改網址結構）。
+- **成本**：A、B 皆 $0（靜態資源請求免費）；B 不佔 Pages 名額。
+- **UX**：相同網址、相同 `_headers`、SPA fallback（`not_found_handling = "single-page-application"`）。
+- **決定**：**B**。`apps/<app>/wrangler.toml`：Worker `call-<sub>-production`、Custom Domain `call-<sub>.jjoy.ai`（DNS 與憑證由 wrangler 建立）、`workers_dev`／`preview_urls` 關閉。
+  回滾一律 `wrangler rollback`（`scripts/rollback.sh --frontends`）。實測時建出的 4 個空 Pages 專案（無任何部署）已刪除，帳號 Pages 數回到原本 10 個。
+  - AE：帳號層級啟用不屬於 `call-` 資源，不由腳本代為啟用；`wrangler.toml` 的 AE binding 先註解（Worker 已判斷 `env.USAGE` 不存在即略過），業主在 dashboard 啟用後取消註解再部署。
+- **取代**：08／10 中「5 個 Pages 專案」「Pages 自訂網域 API＋CNAME」「Pages 回滾」的段落。
+
+## ADR-051 Demo 模擬叫號放在 DO alarm（不靠外部腳本）
+- **背景**：13-demo-seed 原規劃 `pnpm demo:simulate`（本機連 WS 每 N 秒叫號）。展示時要有人開著電腦跑腳本，電腦睡眠就停。
+- **決定**：`features.demo`＋`features.demoSimulate`（總後台可切換）；StoreQueueDO 與關店 alarm 共用同一個 alarm（meta `close_at`／`sim_at`，取較早者）。
+  只在 DEMO 門店、營業時間內、且至少一台面板連線時每 `DEMO_SIM_EVERY_SEC`（預設 20 秒，10～600）走一次與人員指令相同的路徑（取號／叫號／偶爾重叫、過號）。
+  非營業時間不喚醒（排到下一個開店時間）；面板全斷線即停止，下一台面板連上再開始。
+- **成本**：每店營業時間約 20 秒一次 alarm；只有開模擬的 DEMO 門店才有（demo 預設只開台北中山店）。夜間為 0。
+- **UX**：電視開著就有叫號與語音可展示；不需要任何電腦常駐。真實顧客在 DEMO 門店取號時，模擬也可能叫到他（展示用門店，可接受）。

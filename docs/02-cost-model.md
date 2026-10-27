@@ -51,7 +51,7 @@
 | KV 同 key 寫入 | 1 次／秒 | 同上 |
 | Analytics Engine | 資料保留 3 個月；每次呼叫 1 index（≤ 96 bytes）、20 blobs、20 doubles；每 invocation ≤ 250 data points | [analytics-engine/limits](https://developers.cloudflare.com/analytics/analytics-engine/limits/) |
 | Cron Triggers | 250／帳號（Paid），以 **UTC** 執行 | [workers/platform/limits](https://developers.cloudflare.com/workers/platform/limits/)、[cron-triggers](https://developers.cloudflare.com/workers/configuration/cron-triggers/) |
-| Pages 專案數 | 100／帳號；單檔 25 MiB；Free 20,000 檔／站 | [pages/platform/limits](https://developers.cloudflare.com/pages/platform/limits/) |
+| Pages 專案數 | 100／帳號；單檔 25 MiB；Free 20,000 檔／站（**實際**：2026-10-27 共用帳號建到第 14 個即被拒「reached the limit」，與此數字不符、原因未查證；本案已改 assets-only Worker，ADR-050） | [pages/platform/limits](https://developers.cloudflare.com/pages/platform/limits/) |
 
 ### 未查證（估算時採保守值）
 
@@ -112,7 +112,7 @@
 | D1 storage（0.6／2.2／5.5 GB） | 0 | 0 | 0.38 |
 | Queues（1.44M／5.76M／14.4M ops） | 0.18 | 1.90 | 5.36 |
 | R2 廣告與素材（10／40／100 GB） | 0 | 0.45 | 1.35 |
-| Pages、Cron、Access（≤ 50 位平台管理員） | 0 | 0 | 0 |
+| 前端靜態資源（ADR-050）、Cron、Access（≤ 50 位平台管理員） | 0 | 0 | 0 |
 | 用量計量：Analytics Engine（3.15M／12.6M／31.5M points；**目前不計費**） | 0 | 0 | 0（計費後約 5.4） |
 | **合計** | **≈ $5.6** | **≈ $10.5** | **≈ $32.4** |
 | 每店每月 | $0.11 | $0.05 | $0.06 |
@@ -122,7 +122,7 @@
 
 > 廣告素材下載：面板以 Service Worker 快取、素材檔名含 hash 不可變，並經 `media.` 自訂網域由 CF 快取，
 > 每台面板每個素材版本只下載一次 → R2 Class B 讀取遠低於 10M／月內含，估為 0。
-> 叫號語音包（約 7,019 檔、約 50 MB）隨 `apps/display` 部署在 Pages：靜態請求免費無上限、無流量費 → **$0**（ADR-026）；
+> 叫號語音包（約 7,019 檔、約 50 MB）隨 `apps/display` 部署在前端 Worker 的靜態資源（ADR-050；原規劃 Pages）：靜態請求免費無上限、無流量費 → **$0**（ADR-026）；
 > 若放 R2，每台面板首次載入約 7,000 次 Class B 讀取，雖有內含額度與邊緣快取，仍是不必要的計量項目。
 > 用量計量（12-usage-metering）在 DO 端不新增任何寫入列與 alarm，成本 0；Analytics Engine 若開始計費，500 店約 +$5.4。
 

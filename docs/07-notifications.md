@@ -78,7 +78,7 @@ DO 內 `await fetch(push service)` 期間 DO 持續計 wall-clock duration，且
 | 組成 | 叮咚音效 → 叫號句（拼接：**原創俏皮前綴**〔例「等到肚子餓的來賓」，或標準版「來賓」〕、字首、號碼、引導語、櫃台號）。趣味穿插語音**已取消**（ADR-033） |
 | 前綴選擇 | 依門店設定的主題包 tag／單句勾選與出現機率隨機挑選；可整個切成標準版（ADR-025） |
 | 產生 | 一次性以 edge-tts 預錄，放 `assets/audio/` |
-| 部署 | 建置 `apps/display` 時把 `assets/audio/` 複製到 `public/audio/`，**隨 Pages 靜態部署**（不放 R2，ADR-026）；檔名含版本目錄或 hash，可設長期快取 |
+| 部署 | 建置 `apps/display` 時把 `assets/audio/` 複製到 `public/audio/`，**隨 call-display 前端 Worker 靜態部署**（不放 R2，ADR-026、ADR-050）；檔名含版本目錄或 hash，可設長期快取 |
 | 播放 | 面板依 `manifest.json` 找出各片段 → Web Audio API `decodeAudioData` 預載 → 叫號時依序 `start(t)` 排程無縫拼接 |
 | 叮咚 | manifest 內的多款叮咚，門店後台選擇 |
 | 快取 | Service Worker **漸進快取**（見下），完成後斷網可唸；manifest 版本變更時只補抓差異檔 |
@@ -94,7 +94,7 @@ DO 內 `await fetch(push service)` 期間 DO 持續計 wall-clock duration，且
 | 2 | 號碼片段：依門店今日已取號範圍（DO snapshot 的各類別最大號）往後 +100 | 開機後立即，背景下載 |
 | 3 | 其餘號碼、未啟用的主題包 | 閒置時背景下載（`requestIdleCallback`，限制同時 4 個請求，叫號播放時暫停下載） |
 
-- 叫號時若某片段尚未快取：直接從網路抓（同一份 Pages 靜態檔）；離線且缺檔才走 `speechSynthesis` 最後備援。
+- 叫號時若某片段尚未快取：直接從網路抓（同一份 call-display 靜態檔）；離線且缺檔才走 `speechSynthesis` 最後備援。
 - 快取以 manifest 版本為鍵；新版本只下載 hash 變更的檔，舊版本檔在新版完整後刪除。
 
 > 風險註記：edge-tts 使用 Microsoft Edge 線上朗讀服務的非官方介面，**商用授權條款未查證**。由於素材為一次性預錄，

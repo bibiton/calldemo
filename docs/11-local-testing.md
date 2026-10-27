@@ -37,6 +37,8 @@ pnpm dev
 - 用 `pnpm -r --parallel dev`；每個 Vite 的 `server.proxy` 把 `/api` 與 `/ws`（`ws: true`）轉到 8787。
 - `pnpm dev:seed`：套用本機 migration ＋ 匯入 seed（1 品牌、2 門店、各 2 服務類別、3 櫃台、店長與 3 位人員、1 台已配對面板、smoke 門店、10 筆廣告測試素材）。
 - `wrangler.toml` 增加 `[env.local]`，bindings 指向本機資源；secrets 放 `apps/api/.dev.vars`（不進 git）。
+- `pnpm seed:demo`：另灌 Demo 品牌「鮮迴壽司」3 家門店（`DEMOSK01`～`03`，素材 `assets/demo/`、台北中山店開模擬叫號），需先有 `.dev.vars`（先跑 `pnpm dev:seed`）。
+  密碼、PIN、面板／人員網址寫在 `apps/api/.wrangler/demo-output.json`。細節見 [13-demo-seed](13-demo-seed.md)。
 
 ## 3. 自動化測試
 
@@ -149,6 +151,14 @@ Playwright 新增 `admin.spec.ts`（總後台 390×844／360×640 全頁）、`c
 | **DO Duration 夜間趨近 0** | 部署後放一晚：面板＋人員端保持連線過夜，隔天看 `call-api-production` 的 DO Duration 圖，非營業時段應為平線 |
 | 壓測 | 對正式環境的**測試門店**做，且只在非營業時段：k6 尖峰取號（單店 5 分鐘內 300 號）＋ 50 台面板同時連線＋同時叫號廣播；看 p95 叫號延遲 < 1 秒、無錯誤 |
 
+### 4.1 正式網址 E2E：`pnpm e2e:prod`
+
+- 設定 `e2e/playwright.production.config.ts`、測試 `e2e/production/prod.spec.ts`：不起本機伺服器，直接打 `https://call-*.jjoy.ai`（Chromium，帶 `--autoplay-policy=no-user-gesture-required`）。
+- 前提：已跑 `pnpm seed:demo --env production --confirm`（讀 `~/.config/queue-call-system/demo-output.json` 的裝置網址、PIN、店長帳密；沒有這個檔整組 skip）。
+- 5 項（2026-10-27 全過）：台中公益店主流程（面板 QR → 顧客取號 → 人員叫號 → 面板大字＋音訊事件 chime／前綴／號碼／櫃台 → 顧客頁被叫提示 → 完成；叫號到面板 231 ms）、
+  門店後台頁面、顧客頁 DEMO 標示與 Logo（中山店）、模擬叫號（中山店，只在 10:00–22:00）、總後台只截到 Access 登入頁（自動化停在 Access；不關閉保護）。
+- 截圖 `test-results/production/prod-*.png`，紀錄見 [visual-review-M6.md](visual-review-M6.md)。會在 Demo 門店真的產生一張號碼與歷史紀錄。
+
 ## 5. 開發流程
 
 ```
@@ -156,7 +166,7 @@ Playwright 新增 `admin.spec.ts`（總後台 390×844／360×640 全頁）、`c
   → pnpm test（Vitest 全過，含 T12 hibernation 靜態檢查、scripts/lib.test.sh 部署安全閘）
   → pnpm e2e（Playwright 視覺／流程測試全過）
   → bash scripts/deploy.sh：一鍵部署到 production（會再跑一次 test＋e2e，失敗不動雲端；smoke 失敗自動回滾 Worker）
-  → 部署後在正式網址驗證：smoke（自動）＋手機／電視實機（§4、10 C 段）
+  → 部署後在正式網址驗證：smoke（自動）＋ pnpm e2e:prod（選用，§4.1）＋手機／電視實機（§4、10 C 段）
 ```
 
 CI（`.github/workflows/ci.yml`）只跑測試、不部署；部署憑證只在業主電腦的 `~/.config/queue-call-system/cf.env`（08 §4.0）。

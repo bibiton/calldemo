@@ -2,7 +2,7 @@
 
 ## 0. 共通規範
 
-- React + Vite + Tailwind；每個 app 是獨立 Pages 專案、獨立子網域。
+- React + Vite + Tailwind；每個 app 是獨立的 assets-only Worker（`call-<sub>-production`，ADR-050；原規劃 Pages）、獨立子網域。
 - **手機直版優先（mobile-first、portrait）**：總後台、門店後台、人員端、顧客頁都必須在 **360×640 直立手機**完整可用。
   桌機只是同一版面放寬（`md:` 以上變雙欄、表格展開更多欄），**不另做桌機版**。
 - 叫號面板（display）以**直立電視**為主（1080×1920），橫式只做「可用」不做最佳化。

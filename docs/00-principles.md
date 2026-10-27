@@ -26,7 +26,7 @@
 - `setWebSocketAutoResponse` 回應時**不喚醒 DO、不計 duration**。
   → 結論：心跳必須用它，不能讓 DO 自己回 pong。
 - 靜態資產請求（Pages / Workers static assets）**免費且無上限**。
-  → 結論：前端放 Pages，不用 SSR。
+  → 結論：前端放靜態資源，不用 SSR（原放 Pages；ADR-050 改 Workers static assets，同樣免費）。
 - R2 **出口免費**；KV 寫入 $5／百萬，是讀取的 10 倍；KV 同一 key 每秒最多 1 次寫入。
   → 結論：KV 只放「很少改、很常讀」的東西（開通狀態），即時狀態絕不放 KV。
 

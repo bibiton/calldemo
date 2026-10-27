@@ -1,5 +1,5 @@
 # 每次 push／PR：T12 hibernation 靜態檢查＋型別檢查＋全部測試。失敗即擋（ADR-006）。
-# 部署 workflow（deploy.yml）屬 roadmap M6，尚未加入。
+# 只跑測試、不部署（ADR-049：憑證只在業主電腦的 cf.env，部署一律手動 scripts/deploy.sh）。
 name: ci
 on:
   push:

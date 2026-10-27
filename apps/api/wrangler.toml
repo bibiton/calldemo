@@ -72,7 +72,7 @@ name = "call-api-production"
 routes = [
   { pattern = "call-api.jjoy.ai", custom_domain = true },
   # ADR-047：總後台 SPA 呼叫同源 /api/admin/*，由 call-admin.jjoy.ai 前面的 Access 注入 Cf-Access-Jwt-Assertion。
-  # 「Worker route 優先於同 host 的 Pages 自訂網域」未查證；不成立時改用 admin Pages 專案內的 Pages Function 代理（08 §7）。
+  # Worker route 優先於同 host 的 Custom Domain（官方文件；2026-10-27 正式網址實測生效，ADR-050）。
   { pattern = "call-admin.jjoy.ai/api/*", zone_name = "jjoy.ai" },
 ]
 vars = { ENV = "production", APP_ORIGINS = "https://call-admin.jjoy.ai,https://call-store.jjoy.ai,https://call-staff.jjoy.ai,https://call-display.jjoy.ai,https://call-q.jjoy.ai", MEDIA_BASE = "https://call-media.jjoy.ai", CUSTOMER_BASE_URL = "https://call-q.jjoy.ai", AE_DATASET = "call_usage_production" }

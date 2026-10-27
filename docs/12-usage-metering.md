@@ -123,7 +123,7 @@ CREATE TABLE billing_inputs (          -- 每月實際帳單（總後台輸入�
 | DO duration | `do_active_seconds_est` |
 | DO SQLite（rows written、storage） | `do_rows_written_est` |
 | D1 | `tickets` |
-| R2 | `r2_byte_days`（廣告、Logo）；語音包在 Pages，不產生費用 |
+| R2 | `r2_byte_days`（廣告、Logo）；語音包在 call-display 前端 Worker 的靜態資源（ADR-050），不產生費用 |
 | Queues | `push_sent + tickets/25` |
 | Analytics Engine | `api_requests` |
 

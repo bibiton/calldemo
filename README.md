@@ -1,8 +1,8 @@
 # 叫號系統（queue-call-system）— 規劃文件
 
-> 狀態：**M0（本機部分）＋M1～M3＋M4 總後台與計量＋M5 上線前檢查（本機部分）已實作**（2026-10-27），本機測試（Vitest 304、Playwright 43）、壓測（本機）與視覺測試通過；尚未部署任何 Cloudflare 環境，實機推播／iOS／電視、Access、計量誤差比對、夜間成本待部署後在正式網址驗證。
-> 逐項狀態見 [docs/09-roadmap.md](docs/09-roadmap.md)「M0／M1」「M2／M3」「M4／M5 實作狀態」，視覺測試紀錄見 [visual-review-M1](docs/visual-review-M1.md)、[M3](docs/visual-review-M3.md)、[M4](docs/visual-review-M4.md)。
-> `scripts/` 的部署腳本仍是草稿，**未實測**（M6）。
+> 狀態：**M0～M5 已實作；M6（一鍵部署）與 M7（Demo 資料包）完成並已部署到正式 DEMO 環境 `*.jjoy.ai`**（2026-10-27）。
+> 本機：Vitest 324、node:test 8、lib.test 48、Playwright 43；正式網址：smoke 全過、`pnpm e2e:prod` 5 項全過、回滾實測通過。
+> 仍需實機：手機掃 QR、電視聲音、iPhone 推播、夜間 DO Duration（見 [docs/09-roadmap.md](docs/09-roadmap.md) M6／M7 實作狀態）。
 > 文件日期：2026-10-27。價格查證日期：2026-10-27（來源見 [docs/02-cost-model.md](docs/02-cost-model.md)）。
 
 ## 一句話
@@ -21,7 +21,7 @@
 
 ```
 顧客手機 ─┐                                   ┌─ D1（主檔＋歷史）
-人員手機 ─┼─ Pages（5 個 SPA，靜態免費）       ├─ KV（門店開通狀態快取）
+人員手機 ─┼─ 5 個 SPA（assets-only Worker，靜態免費，ADR-050）├─ KV（門店開通狀態快取）
 面板電視 ─┤                                   ├─ R2（Logo／廣告）
 後台     ─┘── Worker API（Hono）──────────────┼─ Queues（歷史批次寫入、Web Push）
                  │                             └─ Cron（每日彙總、清理）
@@ -58,8 +58,9 @@
 | [docs/12-usage-metering.md](docs/12-usage-metering.md) | 每店用量計量、成本分攤、總後台用量頁與異常警示 |
 | [docs/13-demo-seed.md](docs/13-demo-seed.md) | Demo 資料包（虛構迴轉壽司品牌、素材授權、模擬叫號、一鍵灌入） |
 | [DECISIONS.md](DECISIONS.md) | 決策紀錄（ADR） |
-| [scripts/](scripts/) | bootstrap／deploy／rollback 腳本草稿（**未實測**） |
-| `assets/audio/` | 預錄叫號語音素材與 `manifest.json`（另案產生；建置時複製進 `apps/display` 隨 Pages 部署，ADR-026） |
+| [scripts/](scripts/) | bootstrap／deploy／rollback／smoke 腳本（M6 已實測） |
+| `assets/audio/` | 預錄叫號語音素材與 `manifest.json`（另案產生；建置時複製進 `apps/display` 隨前端部署，ADR-026） |
+| `assets/demo/` | Demo 品牌「鮮迴壽司」素材（廣告圖、影片、Logo）與來源授權 `CREDITS.md`（M7） |
 
 ## Monorepo 規劃
 
@@ -74,7 +75,7 @@ apps/
 packages/
   shared/     型別、WS 協定、驗證（手機格式、姓名遮罩）、QR token 演算法
 assets/audio/ 預錄語音素材＋manifest.json（另案產生）
-scripts/      bootstrap.sh / deploy.sh / rollback.sh / smoke.sh（草稿）
+scripts/      bootstrap.sh / deploy.sh / rollback.sh / smoke.sh / smoke-ws.mjs
 ```
 
 前端一律 React + Vite + Tailwind，**手機直版優先**（mobile-first、portrait）。不用 Next.js。
@@ -88,6 +89,7 @@ pnpm dev      # API 8787、admin 5171、store 5172、staff 5173、display 5174�
               # 門店後台：http://localhost:5172/  demo-demo01@example.com ／ demo-password（seed 會印出各店帳號）
 pnpm test     # T12 靜態檢查＋全部 Vitest（api／display／shared）
 pnpm e2e      # Playwright：獨立環境（8788／617x），截圖輸出 test-results/visual/
+pnpm seed:demo   # Demo 品牌「鮮迴壽司」3 家門店（本機；輸出 apps/api/.wrangler/demo-output.json）
 ```
 
 顧客取號網址由面板上的 QR 產生（面板頁 `data-qr-url` 屬性也有同一網址）。
@@ -97,19 +99,34 @@ pnpm e2e      # Playwright：獨立環境（8788／617x），截圖輸出 test-r
 DEMO 用途、成本最低：只有一個正式環境，網域 `jjoy.ai`（共用 Cloudflare 帳號，本系統資源一律 `call-` 前綴，腳本有安全閘）。
 
 ```
-本機 pnpm dev ＋ pnpm test ＋ pnpm e2e 全過
-  → bash scripts/deploy.sh          # 一鍵部署到 production（憑證只讀 ~/.config/queue-call-system/cf.env）
-  → 部署後在正式網址驗證：smoke（自動）＋手機／電視實機
+本機 pnpm test ＋ pnpm e2e 全過
+  → bash scripts/deploy.sh          # 一鍵部署（憑證只讀 ~/.config/queue-call-system/cf.env），smoke 失敗自動回滾 API Worker
+  → pnpm e2e:prod                   # （選用）正式網址 E2E，截圖 test-results/production/
+  → 手機／電視實機驗證（docs/10 C 段）
 ```
 
-| 網址 | 用途 |
-|---|---|
-| `https://call-admin.jjoy.ai` | 總後台（Cloudflare Access，One-time PIN） |
-| `https://call-store.jjoy.ai` | 門店後台 |
-| `https://call-staff.jjoy.ai` | 人員端 |
-| `https://call-display.jjoy.ai` | 叫號面板 |
-| `https://call-q.jjoy.ai` | 顧客取號 |
-| `https://call-api.jjoy.ai` | Worker API |
-| `https://call-media.jjoy.ai` | 廣告／Logo（R2 自訂網域） |
+首次建置 `bash scripts/bootstrap.sh`，逐步說明見 [docs/10-deploy-guide-for-owner.md](docs/10-deploy-guide-for-owner.md)，設計見 [docs/08-deploy-and-ops.md](docs/08-deploy-and-ops.md)。
 
-首次建置與逐步說明見 [docs/10-deploy-guide-for-owner.md](docs/10-deploy-guide-for-owner.md)，設計見 [docs/08-deploy-and-ops.md](docs/08-deploy-and-ops.md)。
+## DEMO 網址與登入方式
+
+| 網址 | 用途 | 登入 |
+|---|---|---|
+| `https://call-display.jjoy.ai` | 叫號面板（電視直立 1080×1920） | 配對碼，或 demo 輸出檔裡已配對的面板網址（`?token=…`） |
+| `https://call-q.jjoy.ai` | 顧客取號 | 不用登入：手機掃面板上的 QR |
+| `https://call-staff.jjoy.ai` | 人員端（櫃台叫號） | 已配對手機網址（`?device=…`）→ 選人員 → 6 位 PIN |
+| `https://call-store.jjoy.ai` | 門店後台 | 店長 email＋密碼 |
+| `https://call-admin.jjoy.ai` | 總後台 | Cloudflare Access：輸入名單內 email → 收 6 位數驗證碼（One-time PIN） |
+| `https://call-api.jjoy.ai` | API（`/health` 可看版本） | — |
+| `https://call-media.jjoy.ai` | 廣告／Logo（R2，不開 r2.dev） | 公開唯讀 |
+
+Demo 門店（虛構品牌「鮮迴壽司」，`pnpm seed:demo --env production --confirm` 建立；服務 A 內用／B 外帶；營業 10:00–22:00）：
+
+| 門店 | 門店碼 | 店長帳號 | 櫃台 | 模擬叫號 |
+|---|---|---|---|---|
+| 鮮迴壽司 台北中山店 | `DEMOSK01` | `senkai-zs@example.com` | 1、2 內用／3 外帶 | **開**（營業時間內、有面板連線時每 20 秒自動取號叫號，總後台「模擬叫號」可關） |
+| 鮮迴壽司 台中公益店 | `DEMOSK02` | `senkai-gy@example.com` | 1 內用／2 外帶 | 關 |
+| 鮮迴壽司 高雄左營店 | `DEMOSK03` | `senkai-zy@example.com` | 1 內用／2 外帶 | 關 |
+
+- **店長密碼、人員 PIN、已配對面板／人員手機網址**：在部署者電腦的 `~/.config/queue-call-system/demo-output.json`（權限 600，**不進 repo**；重跑 seed 會沿用同一組）。
+- 總後台名單＝cf.env 的 `ACCESS_ALLOWED_EMAILS`；改名單後跑 `bash scripts/bootstrap.sh`。
+- 畫面角落固定顯示「DEMO・虛構品牌」；素材來源與授權見 [assets/demo/CREDITS.md](assets/demo/CREDITS.md)。

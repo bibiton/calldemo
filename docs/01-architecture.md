@@ -4,8 +4,8 @@
 
 ```
                          ┌──────────────── Cloudflare ────────────────────────────────┐
- 顧客手機 (call-q) ─────▶│ Pages: customer   (靜態，免費)                              │
- 人員手機 (call-staff)   │ Pages: staff / store / admin / display                      │
+ 顧客手機 (call-q) ─────▶│ 前端 Worker（assets-only）: customer (靜態，免費，ADR-050)  │
+ 人員手機 (call-staff)   │ 前端 Worker（assets-only）: staff / store / admin / display │
  叫號面板 (call-display) │                                                             │
  門店後台 (call-store)   │        ┌──────────────── Worker: api (Hono) ──────────────┐ │
  總後台 (call-admin)     │ api  ─▶│ 1. 驗身分 (JWT / Access / device token / QR token)│ │
@@ -30,7 +30,7 @@
 
 | 服務 | 放什麼 | 不放什麼 | 理由 |
 |---|---|---|---|
-| **Pages** ×5 | 5 個 SPA 的靜態檔；**叫號語音包**（約 7,019 檔、約 50 MB，全門店共用，隨 `display` 部署，ADR-026） | 任何 SSR / Functions | 靜態請求免費無上限 |
+| **前端 Worker（assets-only）** ×5（ADR-050，原規劃 Pages） | 5 個 SPA 的靜態檔；**叫號語音包**（約 7,019 檔、約 50 MB，全門店共用，隨 `display` 部署，ADR-026） | 任何 SSR / Functions | 靜態請求免費無上限 |
 | **Worker `api`**（Hono） | 驗證、開通檢查、主檔 CRUD、WS upgrade 轉交 DO、QR token 驗證、Queue consumer、Cron | 即時狀態 | 無狀態，水平擴展 |
 | **StoreQueueDO** | 單店即時號碼、取號序號、狀態機、事件 seq、WS 廣播、**進行中號碼的姓名／手機** | 歷史、跨店查詢 | 單店單執行緒＝天然序列化，無競態 |
 | **D1** | 品牌、門店、帳號、裝置、服務類別、櫃台、廣告主檔、歷史、每日統計、推播訂閱、稽核 | 即時寫入 | rows written 計費，只收批次 |
@@ -91,11 +91,11 @@ DO.suspend()：廣播 store.suspended（面板顯示「服務暫停」）→ 關
 
 | 子網域 | 指向 | 保護 |
 |---|---|---|
-| `call-admin.jjoy.ai` | Pages `call-admin-production`；`/api/*` 由 Worker route 接手（ADR-047） | Cloudflare Access（One-time PIN） |
-| `call-store.jjoy.ai` | Pages `call-store-production` | 帳密 + JWT |
-| `call-staff.jjoy.ai` | Pages `call-staff-production` | 人員 PIN（裝置先綁店） |
-| `call-display.jjoy.ai` | Pages `call-display-production` | 裝置配對 |
-| `call-q.jjoy.ai` | Pages `call-q-production`（apps/customer） | 動態 QR token |
+| `call-admin.jjoy.ai` | 前端 Worker `call-admin-production`；`/api/*` 由 Worker route 接手（ADR-047） | Cloudflare Access（One-time PIN） |
+| `call-store.jjoy.ai` | 前端 Worker `call-store-production` | 帳密 + JWT |
+| `call-staff.jjoy.ai` | 前端 Worker `call-staff-production` | 人員 PIN（裝置先綁店） |
+| `call-display.jjoy.ai` | 前端 Worker `call-display-production` | 裝置配對 |
+| `call-q.jjoy.ai` | 前端 Worker `call-q-production`（apps/customer） | 動態 QR token |
 | `call-api.jjoy.ai` | Worker `call-api-production` | 依路由 |
 | `call-media.jjoy.ai` | R2 `call-media-production`（自訂網域，經 CF 快取；不開 r2.dev） | 公開唯讀、檔名含 hash |
 
