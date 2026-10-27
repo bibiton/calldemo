@@ -11,8 +11,8 @@ export { StoreQueueDO } from "./do/store-queue";
 export default {
   fetch: app.fetch,
   async queue(batch: MessageBatch<HistoryMessage | PushMessage>, env: Env, _ctx: ExecutionContext): Promise<void> {
-    // 佇列名稱依環境不同（qcs-push / qcs-push-staging / qcs-push-local）
-    if (batch.queue.startsWith("qcs-push")) await handlePushBatch(batch as MessageBatch<PushMessage>, env);
+    // 佇列名稱依環境不同（本機 qcs-push-local／正式 call-push-production，ADR-049）：以「push」片段判斷
+    if (/(^|-)push(-|$)/.test(batch.queue)) await handlePushBatch(batch as MessageBatch<PushMessage>, env);
     else await handleHistoryBatch(batch as MessageBatch<HistoryMessage>, env);
   },
   async scheduled(controller: ScheduledController, env: Env, _ctx: ExecutionContext): Promise<void> {

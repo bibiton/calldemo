@@ -157,7 +157,7 @@
   - 合理使用：日號碼量長期 > 3,000 或用量異常者，依計量數據協商升級。
 - 實際價格由業主決定；總後台的分攤成本用來確認每個方案的毛利與找出異常門店。
 
-## ADR-021 Pages 每環境一個專案（共 10 個）
+## ADR-021 Pages 每環境一個專案（共 10 個）（已由 ADR-049 取代：只有 production，共 5 個專案）
 - **選項**：A 每 app 一個專案，staging 用 preview branch；B 每 app 每環境各一個專案。
 - **成本**：皆 $0（帳號上限 100 個專案）。
 - **UX**：B 讓 staging 有固定自訂網域（`*.staging.<domain>`）且環境變數完全隔離，避免 staging 前端誤連 production API。
@@ -341,3 +341,37 @@
 - **成本**：C 為 $0（不增加寫入列；索引以含 `ord` 的新索引取代舊索引，索引數不變）。
 - **UX**：叫號順序、顧客看到的「前面幾位」、店員看到的清單三者完全一致。
 - **決定**：**C**。規則見 04-realtime-protocol §3.5；DO schema v3 加 `ord`、`call_seq`（既有列以 rowid 回填一次）；`StaffTicket` 帶 `sortKey`、`ord`，前端一律用 `queueOrder`。
+
+## ADR-049 部署命名與只有正式環境（jjoy.ai、call- 前綴、無 staging）
+- **決策者**：**業主**（2026-10-27 定案），AI（腳本與文件細節）
+- **背景**：本系統是 DEMO，要放在業主既有的 `jjoy.ai`；該網域在**共用的 Cloudflare 帳號**上，同帳號已有 noah／ecshop／pos／reserve 等產品。
+  原設計（08、ADR-021）有 staging＋production 兩套資源、`qcs-` 命名、`*.example.com` 佔位，且部署腳本依賴全域 `wrangler login`。
+- **選項**：
+  - A 維持 staging＋production 兩套（10 個 Pages 專案、兩套 D1／KV／R2／Queues、兩組網域與 Access）。
+  - B **只有 production**；所有資源 `call-` 前綴＋`-production` 後綴；腳本加名稱安全閘；憑證只讀專用檔。
+- **成本**：B 少一套雲端資源與網域維護；Workers Paid 是帳號層級只付一次，兩案月費差距小，但 A 的設定、Access、DNS 與驗證工作量約兩倍。
+  共用帳號的 API token 權限無法限制到單一產品的資源，A、B 都必須靠命名＋腳本閘門隔離；B 要守的名稱只有一組。
+- **UX**：A 可先在 staging 實機驗證；B 改為「部署前本機 `pnpm test`＋`pnpm e2e` 全過 → 部署 → 在正式網址 smoke＋手機／電視實機驗證，smoke 失敗自動回滾 Worker」。
+  DEMO 期間沒有真實門店營運，在正式網址驗證不影響真實顧客。
+- **決定**：**B**。
+  - 子網域（`.jjoy.ai`）：`call-admin`（總後台）、`call-store`（門店後台）、`call-staff`（人員端）、`call-display`（叫號面板）、`call-q`（顧客取號）、
+    `call-api`（Worker）、`call-media`（R2 自訂網域）。
+  - 資源：Worker `call-api-production`、D1 `call-db-production`、KV `call-license-production`、R2 `call-media-production`、
+    Queues `call-history-production`／`call-push-production`（DLQ `call-history-dlq-production`／`call-push-dlq-production`）、
+    Pages `call-<子網域>-production` ×5、AE dataset `call_usage_production`（dataset 名只能用底線）、Access 應用 `call-admin`。
+    `[env.local]` 的 `qcs-*-local` 不改（只存在本機，測試依賴）；Queue consumer 改以名稱中的 `push` 片段判斷（`apps/api/src/index.ts`）。
+  - **安全閘**：`scripts/lib.sh` 要求每個會建立／修改的資源名稱以 `call-` 開頭、網域只允許 `call-*.jjoy.ai`、部署前整段檢查 `wrangler.toml` 的 production 名稱、
+    REST API 只允許本帳號／本 zone 路徑；不符即非 0 結束（自我測試 `scripts/lib.test.sh`，納入 `pnpm test`）。
+    既有、指向別處的 DNS 紀錄不修改；zone 層級 Cache Rules 不以腳本寫入（以 PUT 寫 entrypoint 會覆寫同 zone 其他產品的規則）。
+  - **憑證**：腳本只讀 `~/.config/queue-call-system/cf.env`（`CLOUDFLARE_API_TOKEN`、`CLOUDFLARE_ACCOUNT_ID`、`CF_ZONE_ID`、`ACCESS_ALLOWED_EMAILS`），權限須 600、不印出；
+    wrangler 以暫存 `HOME`／`XDG_CONFIG_HOME`＋環境變數 token 執行，**不使用、不覆寫**全域 `wrangler login`。
+  - **R2 媒體**：只用自訂網域 `call-media.jjoy.ai`，**不開 r2.dev 公開網址**；CORS 只允許 call-display／call-store／call-admin／call-q 的 GET／HEAD；
+    物件內容定址（`ads/<owner>/<sha256>.<ext>`）並帶 `Cache-Control: public, max-age=31536000, immutable`，另以手動 Cache Rule 讓邊緣長期快取。
+  - **總後台 Access**：應用 `call-admin` 保護 `call-admin.jjoy.ai` 整個 host；Login method **One-time PIN**（email 驗證碼，不接 IdP）；
+    Policy Allow `ACCESS_ALLOWED_EMAILS`（**決策者：業主**——讓多位主管用公司信箱直接登入，名單由業主之後提供）。
+    Worker 以 `ACCESS_AUD`、`ACCESS_TEAM_DOMAIN` 驗 JWT，並以 `ACCESS_ALLOWED_EMAILS` 再比一次名單。
+    總後台 API 走同源 `/api/*`（ADR-047），Worker route `call-admin.jjoy.ai/api/*`；此 route 優先於同 host 的 Pages 自訂網域**未查證**，備援為 admin Pages 專案內的 Pages Function 代理。
+  - 不做 CI 自動部署（憑證只在業主電腦）；CI 只跑測試。
+- **取代**：ADR-021（Pages 每環境一個專案）。08、10、11 的 staging 流程同步改為「部署後在正式網址驗證」。
+- **未查證**：Pages 自訂網域 API 端點、Access API（organizations／identity_providers／apps／policies）欄位與權限名稱、R2 CORS JSON 格式、
+  KV namespace 標題是否被加 Worker 名前綴、R2 自訂網域在無 Cache Rule 時對影片的預設快取、wrangler 4.153 以外版本的憑證優先順序。均於 M6 首次部署時確認並回寫 08。

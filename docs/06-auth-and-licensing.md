@@ -15,7 +15,7 @@
 - `crypto.subtle.deriveBits({name:"PBKDF2", hash:"SHA-256", salt, iterations})`，salt 16 bytes 隨機。
 - iterations：**100,000**。
   - **M0 0.3 實測（2026-10-27，本機 workerd，`apps/api/test/m0-runtime.test.ts`）**：100,000 可用；**100,001 與 600,000 也都成功**——
-    本機 workerd **不限制** iteration。社群所說「production 上限 100,000」本機無法驗證，**留待 staging 實測**。
+    本機 workerd **不限制** iteration。社群所說「production 上限 100,000」本機無法驗證，**留待部署後在正式環境實測**（ADR-049 沒有 staging）。
   - 程式維持 100,000（兩邊都安全），且 `verifySecret` 拒絕 > 100,000 的雜湊字串，避免日後誤設高值在 production 才失敗。
   - CPU 成本只發生在登入時，可忽略。
 - 格式：`pbkdf2$sha256$<iter>$<salt_b64>$<hash_b64>`，可在未來升級演算法時辨識舊格式。
@@ -66,7 +66,7 @@ D1 `stores` 是權威來源；KV `license:<storeId>` 是快取。
 
 ```
 面板開機（無 device token）→ POST /api/display/pair/start → 回 deviceId＋6 位配對碼（10 分鐘）
-  面板顯示配對碼＋QR（內容：https://store.<domain>/pair?code=123456）
+  面板顯示配對碼＋QR（內容：https://call-store.jjoy.ai/pair?code=123456）
 店長在門店後台（或用手機掃此 QR）輸入配對碼 → 檢查 max_devices → devices.status = active
 面板輪詢 /api/display/pair/status（僅配對期間，每 3 秒，最多 10 分鐘）→ 取得 device token
 ```

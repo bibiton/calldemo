@@ -34,7 +34,7 @@ function audioPack(): Plugin {
 
 export default defineConfig({
   plugins: [react(), tailwindcss(), audioPack()],
-  // 本機模擬 media.<domain>：/ads/* 轉到 Worker 的 /media/ads/*（R2 本機模擬，只在 ENV=local 開放）
+  // 本機模擬 call-media.jjoy.ai：/ads/* 轉到 Worker 的 /media/ads/*（R2 本機模擬，只在 ENV=local 開放）
   server: { proxy: { ...devProxy, "/ads": { target: API_TARGET, rewrite: (p: string) => "/media" + p } } },
   preview: { proxy: { ...devProxy, "/ads": { target: API_TARGET, rewrite: (p: string) => "/media" + p } } },
 });

@@ -13,8 +13,8 @@
 |---|---|---|
 | Worker（Hono） | ✅ | 已查證 |
 | Durable Objects | ✅（官方：DO 目前**一律在本機執行**，不支援 remote binding） | 已查證 |
-| DO WebSocket Hibernation、`setWebSocketAutoResponse`、Alarm | ✅ | **已實測（M0 0.2，2026-10-27，`apps/api/test/m0-runtime.test.ts`）**：文字 `ping` 由 auto-response 回 `pong` 且**不進** `webSocketMessage`、`getWebSocketAutoResponseTimestamp` 有值；`evictDurableObject` 驅逐後連線仍在、下一則訊息以新實例喚醒並由 attachment 還原角色、驅逐後 auto-response 照常；`setAlarm` 可由 `runDurableObjectAlarm` 觸發。**本機無法量測 Duration 計費**，夜間平線仍需 staging（M0 0.1） |
-| D1 | ✅ `wrangler d1 migrations apply qcs-db-staging --local --env staging`＋ seed | 已查證支援本機模擬 |
+| DO WebSocket Hibernation、`setWebSocketAutoResponse`、Alarm | ✅ | **已實測（M0 0.2，2026-10-27，`apps/api/test/m0-runtime.test.ts`）**：文字 `ping` 由 auto-response 回 `pong` 且**不進** `webSocketMessage`、`getWebSocketAutoResponseTimestamp` 有值；`evictDurableObject` 驅逐後連線仍在、下一則訊息以新實例喚醒並由 attachment 還原角色、驅逐後 auto-response 照常；`setAlarm` 可由 `runDurableObjectAlarm` 觸發。**本機無法量測 Duration 計費**，夜間平線需部署後在正式環境觀察（M0 0.1） |
+| D1 | ✅ `wrangler d1 migrations apply qcs-db-local --local --env local`＋ seed（`pnpm dev:seed`） | 已查證支援本機模擬 |
 | KV、R2、Queues | ✅ 本機模擬 | 已查證 |
 | Cron（scheduled handler） | ✅ `curl "http://localhost:8787/cdn-cgi/local/scheduled?format=json"`，或 Local Explorer 介面 | 已查證（舊版的 `--test-scheduled`＋`/__scheduled?cron=` 在現行文件未出現，**未查證**是否仍可用） |
 | Analytics Engine | 本機寫入是否可查 | **未查證**；`env.local` 不綁 AE（M4 計量才用到） |
@@ -101,13 +101,13 @@ Playwright 新增 `notify.spec.ts`（M2）、`store-admin.spec.ts`、`pairing.sp
   Worker 實際加密送出，Node 端用 ECDH 解密驗證；`ENV=local` 才允許 `http://127.0.0.1` 推播端點。
 - `notify` 專案用新版 headless Chromium（`channel: "chromium"`）：headless-shell 的 `Notification.permission` 初始值不可靠、通知中心不完整。放在最後跑（main-flow 斷言當日第一號 A001）。
 - 版面量測 helper `layoutIssues()`：每頁斷言無水平捲動、所有按鈕／輸入／開關 ≥ 44×44。
-- 本機 R2：上傳檔存在 wrangler 本機 R2；面板 dev server 把 `/ads/*` 轉到 Worker 的 `/media/ads/*`（只在 `ENV=local` 提供），模擬 production 的 `media.<domain>`。
+- 本機 R2：上傳檔存在 wrangler 本機 R2；面板 dev server 把 `/ads/*` 轉到 Worker 的 `/media/ads/*`（只在 `ENV=local` 提供），模擬 production 的 `call-media.jjoy.ai`。
 
 ### 3.3 E2E：Playwright（手機直版 viewport）
 
 - 執行：`pnpm e2e`。自動起一套**獨立環境**（API 8788、display 6174、customer 6175、staff 6173，state 在 `.e2e-state/` 每次清空重灌 seed），
   不影響開發用的 8787／517x。截圖輸出 `test-results/visual/`。
-- 本機只有 Chromium：手機以 Chromium 模擬 390×844（Pixel 類 UA、觸控）與 360×640；**未跑 WebKit／iOS Safari**（留待 staging 實機）。
+- 本機只有 Chromium：手機以 Chromium 模擬 390×844（Pixel 類 UA、觸控）與 360×640；**未跑 WebKit／iOS Safari**（部署後在正式網址以實機驗證，§4）。
 - 叫號機分兩種瀏覽器設定：`kiosk` 專案帶 `--autoplay-policy=no-user-gesture-required`（等同 ADR-027 方案 C）、
   `web-blocked` 專案帶 `--autoplay-policy=document-user-activation-required`（一般瀏覽器）。
 
@@ -119,22 +119,28 @@ Playwright 新增 `notify.spec.ts`（M2）、`store-admin.spec.ts`、`pairing.sp
   4. 斷言：面板大字號碼＝該號、播放佇列收到 1 筆；顧客頁出現全螢幕叫號提示
 - 其他 E2E：停用門店後面板顯示「服務暫停」、QR 區顯示「暫停取號」；廣告上傳超過 50 MB 被前端擋下。
 
-## 4. 本機做不到 → staging 驗證
+## 4. 本機做不到 → 部署後在正式網址驗證
+
+只有 production 一個環境（ADR-049，沒有 staging）。以下項目在部署後直接於正式網址（`call-*.jjoy.ai`）以實機驗證，步驟見 [10-deploy-guide-for-owner](10-deploy-guide-for-owner.md) C 段。
 
 | 項目 | 方法 |
 |---|---|
-| 手機實機掃 QR、Service Worker、Web Push（都需要 HTTPS） | `cloudflared tunnel --url http://localhost:5175`（quick tunnel 給一次性 HTTPS 網址）做快速實機試；正式驗證在 staging |
-| iOS 加入主畫面推播（16.4+） | staging，實機 iPhone |
-| 叫號機實機：音訊解鎖、kiosk 免點擊、2～3 公尺掃 QR | staging，實際電視／電視盒 |
-| Cloudflare Access | staging 的 `admin.staging.<domain>` |
-| **DO Duration 夜間趨近 0** | staging 放一晚：面板＋人員端保持連線過夜，隔天看 DO Duration 圖，非營業時段應為平線 |
-| 壓測 | k6 對 staging：尖峰取號（單店 5 分鐘內 300 號）＋ 50 台面板同時連線＋同時叫號廣播；看 p95 叫號延遲 < 1 秒、無錯誤 |
+| 手機實機掃 QR、Service Worker、Web Push（都需要 HTTPS） | 部署前可用 `cloudflared tunnel --url http://localhost:5175`（quick tunnel 給一次性 HTTPS 網址）快速試；正式驗證在 `https://call-q.jjoy.ai` |
+| iOS 加入主畫面推播（16.4+） | 部署後，實機 iPhone 開 `https://call-q.jjoy.ai` |
+| 叫號機實機：音訊解鎖、kiosk 免點擊、2～3 公尺掃 QR | 部署後，實際電視／電視盒開 `https://call-display.jjoy.ai` |
+| Cloudflare Access | 部署後，無痕視窗開 `https://call-admin.jjoy.ai`（One-time PIN） |
+| R2 媒體網域：CORS、`Cache-Control`、邊緣快取 | 部署後依 10 步驟 12「媒體檢查」 |
+| **DO Duration 夜間趨近 0** | 部署後放一晚：面板＋人員端保持連線過夜，隔天看 `call-api-production` 的 DO Duration 圖，非營業時段應為平線 |
+| 壓測 | 對正式環境的**測試門店**做，且只在非營業時段：k6 尖峰取號（單店 5 分鐘內 300 號）＋ 50 台面板同時連線＋同時叫號廣播；看 p95 叫號延遲 < 1 秒、無錯誤 |
 
 ## 5. 開發流程
 
 ```
 本機 pnpm dev 開發
-  → pnpm test（Vitest 全過，含 T12 hibernation 靜態檢查）
-  → push 到非 main 分支 → GitHub Actions 自動部署 staging → 實機驗證（§4）
-  → 合併 main → 自動部署 production（可設人工核准）
+  → pnpm test（Vitest 全過，含 T12 hibernation 靜態檢查、scripts/lib.test.sh 部署安全閘）
+  → pnpm e2e（Playwright 視覺／流程測試全過）
+  → bash scripts/deploy.sh：一鍵部署到 production（會再跑一次 test＋e2e，失敗不動雲端；smoke 失敗自動回滾 Worker）
+  → 部署後在正式網址驗證：smoke（自動）＋手機／電視實機（§4、10 C 段）
 ```
+
+CI（`.github/workflows/ci.yml`）只跑測試、不部署；部署憑證只在業主電腦的 `~/.config/queue-call-system/cf.env`（08 §4.0）。
