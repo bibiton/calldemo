@@ -1,0 +1,1468 @@
+{
+  "version": 1,
+  "generatedAt": "2026-10-27T04:01:12+00:00",
+  "voice": {
+    "name": "zh-TW-HsiaoChenNeural",
+    "rate": "+6%",
+    "pitch": "+3Hz"
+  },
+  "format": {
+    "codec": "mp3",
+    "sampleRate": 24000,
+    "channels": 1,
+    "bitrate": "32k",
+    "container": "mp3",
+    "mime": "audio/mpeg",
+    "note": "MP3 是所有瀏覽器（含 iOS Safari、舊版電視盒 WebView）都能 decodeAudioData 的格式"
+  },
+  "totals": {
+    "files": 95,
+    "bytes": 680980,
+    "byCategory": {
+      "chime": {
+        "files": 3,
+        "bytes": 25092
+      },
+      "prefix": {
+        "files": 56,
+        "bytes": 415360
+      },
+      "number": {
+        "files": 0,
+        "bytes": 0
+      },
+      "phrase": {
+        "files": 36,
+        "bytes": 240528
+      }
+    }
+  },
+  "gapsMs": {
+    "afterChime": 250,
+    "prefixToNumber": 60,
+    "letterToNumber": 30,
+    "numberToEnding": 220,
+    "recallToPrefix": 160,
+    "betweenRepeats": 900
+  },
+  "rules": {
+    "number": {
+      "combined": {
+        "letters": "ABCDEF",
+        "range": [
+          1,
+          999
+        ],
+        "file": "number/{L}/{NNN}.mp3",
+        "key": "number.{L}.{n}",
+        "note": "字首在 combined 字母內時，字首＋號碼是同一段（一口氣念完最自然）"
+      },
+      "fallback": {
+        "steps": [
+          "letter.{L}...",
+          "number._.{n}"
+        ],
+        "letterFile": "letter/{L}.mp3",
+        "numberFile": "number/_/{NNN}.mp3",
+        "gapMs": 30,
+        "note": "其他字首或兩字元字首：逐字母念，再接純號碼；超出範圍改用 speechSynthesis"
+      },
+      "index": "manifest.numbers.json"
+    },
+    "counter": {
+      "key": "counter.{n}",
+      "file": "counter/{NN}.mp3",
+      "range": [
+        1,
+        30
+      ],
+      "note": "「請到 N 號櫃台」整句一段"
+    },
+    "prefix": {
+      "storeSettings": {
+        "prefixMode": "fun | standard",
+        "enabledPacks": "以主題包勾選（展開成該包的 prefixKeys）",
+        "enabledPrefixKeys": "預設＝defaultEnabled 為 true 的；非餐飲門店應排除 venue=food",
+        "funProbability": "0～1，每次叫號以此機率用趣味前綴，否則用 prefix.std（建議 0.7）",
+        "manualPrefixKey": "人員手動指定（生日等 manualOnly 只能這樣用）"
+      },
+      "pick": "從啟用清單隨機，避免與上一次相同；同一號碼重複播報（×N）沿用同一個前綴"
+    },
+    "slots": {
+      "chime": "門店設定的叮咚款式",
+      "prefix": "依 rules.prefix 選",
+      "number": "依 rules.number 解析",
+      "counter": "counter.{櫃台號碼}",
+      "recall": "phrase.recall1 / phrase.recall2 隨機"
+    },
+    "gapBetweenSteps": {
+      "chime>*": "afterChime",
+      "prefix>number": "prefixToNumber",
+      "recall>prefix": "recallToPrefix",
+      "number>*": "numberToEnding",
+      "default": 200
+    }
+  },
+  "prefixPacks": [
+    {
+      "key": "standard",
+      "name": "標準版",
+      "note": "只說「來賓」，給不要趣味的門店",
+      "prefixKeys": [
+        "prefix.std"
+      ]
+    },
+    {
+      "key": "hungry",
+      "name": "餓了系",
+      "note": "餐飲限定（venue=food）",
+      "prefixKeys": [
+        "prefix.hungry01",
+        "prefix.hungry02",
+        "prefix.hungry03",
+        "prefix.hungry04",
+        "prefix.hungry05",
+        "prefix.hungry06",
+        "prefix.hungry07",
+        "prefix.hungry08",
+        "prefix.hungry09",
+        "prefix.hungry10",
+        "prefix.hungry11"
+      ]
+    },
+    {
+      "key": "waited",
+      "name": "等很久系",
+      "note": "感謝耐心等候",
+      "prefixKeys": [
+        "prefix.wait01",
+        "prefix.wait02",
+        "prefix.wait03",
+        "prefix.wait04",
+        "prefix.wait05",
+        "prefix.wait06",
+        "prefix.wait07",
+        "prefix.wait08"
+      ]
+    },
+    {
+      "key": "anticipation",
+      "name": "期待系",
+      "note": "好事要發生了",
+      "prefixKeys": [
+        "prefix.hope01",
+        "prefix.hope02",
+        "prefix.hope03",
+        "prefix.hope04",
+        "prefix.hope05",
+        "prefix.hope06",
+        "prefix.hope07",
+        "prefix.hope08",
+        "prefix.hope09",
+        "prefix.hope10",
+        "prefix.hope11"
+      ]
+    },
+    {
+      "key": "warm",
+      "name": "溫馨系",
+      "note": "歡迎與感謝；含生日（manualOnly，人員手動指定）",
+      "prefixKeys": [
+        "prefix.warm01",
+        "prefix.warm02",
+        "prefix.warm03",
+        "prefix.warm04",
+        "prefix.warm05",
+        "prefix.warm06",
+        "prefix.warm07",
+        "prefix.warm08",
+        "prefix.warm09",
+        "prefix.warm10",
+        "prefix.bday01",
+        "prefix.bday02"
+      ]
+    },
+    {
+      "key": "festival",
+      "name": "季節節慶系",
+      "note": "天氣與節日，預設關閉，由門店在當季／當天開啟",
+      "prefixKeys": [
+        "prefix.weather01",
+        "prefix.weather02",
+        "prefix.weather03",
+        "prefix.weather04",
+        "prefix.fest01",
+        "prefix.fest02",
+        "prefix.fest03",
+        "prefix.fest04",
+        "prefix.fest05",
+        "prefix.fest06",
+        "prefix.fest07",
+        "prefix.fest08",
+        "prefix.fest09"
+      ]
+    }
+  ],
+  "templates": [
+    {
+      "key": "tpl.counter",
+      "name": "趣味版（櫃台）",
+      "use": "一般叫號、有櫃台",
+      "steps": [
+        "chime",
+        "prefix",
+        "number",
+        "counter"
+      ],
+      "category": "template"
+    },
+    {
+      "key": "tpl.seat",
+      "name": "趣味版（入座）",
+      "use": "餐廳候位、不分櫃台",
+      "steps": [
+        "chime",
+        "prefix",
+        "number",
+        "phrase.seat"
+      ],
+      "category": "template"
+    },
+    {
+      "key": "tpl.standard",
+      "name": "標準版",
+      "use": "不要趣味的門店",
+      "steps": [
+        "chime",
+        "prefix.std",
+        "number",
+        "counter"
+      ],
+      "category": "template"
+    },
+    {
+      "key": "tpl.recall",
+      "name": "重叫版",
+      "use": "人員按「重叫」",
+      "steps": [
+        "chime",
+        "recall",
+        "prefix",
+        "number",
+        "counter"
+      ],
+      "category": "template"
+    },
+    {
+      "key": "tpl.skipped",
+      "name": "過號提醒版",
+      "use": "人員按「過號」後播一次",
+      "steps": [
+        "chime",
+        "prefix.std",
+        "number",
+        "phrase.skipped"
+      ],
+      "category": "template"
+    }
+  ],
+  "files": [
+    {
+      "key": "chime.dingdong",
+      "text": "經典叮咚（E5→C5 兩音）",
+      "file": "chime/dingdong.mp3",
+      "category": "chime",
+      "durationSec": 1.9,
+      "bytes": 8108
+    },
+    {
+      "key": "chime.bright",
+      "text": "輕快三音（C5→E5→G5）",
+      "file": "chime/bright.mp3",
+      "category": "chime",
+      "durationSec": 1.4,
+      "bytes": 6092
+    },
+    {
+      "key": "chime.bell",
+      "text": "柔和鐘聲（D5、A4 兩擊）",
+      "file": "chime/bell.mp3",
+      "category": "chime",
+      "durationSec": 2.6,
+      "bytes": 10892
+    },
+    {
+      "key": "prefix.std",
+      "text": "來賓",
+      "file": "prefix/std.mp3",
+      "category": "prefix",
+      "pack": "standard",
+      "tags": [
+        "standard"
+      ],
+      "venue": "any",
+      "defaultEnabled": true,
+      "durationSec": 0.482,
+      "bytes": 2444,
+      "method": "carrier-cut"
+    },
+    {
+      "key": "prefix.hungry01",
+      "text": "肚子正在打鼓的來賓",
+      "file": "prefix/hungry01.mp3",
+      "category": "prefix",
+      "pack": "hungry",
+      "tags": [
+        "hungry"
+      ],
+      "venue": "food",
+      "defaultEnabled": true,
+      "durationSec": 1.613,
+      "bytes": 6956,
+      "method": "carrier-cut"
+    },
+    {
+      "key": "prefix.hungry02",
+      "text": "胃已經在敲門的來賓",
+      "file": "prefix/hungry02.mp3",
+      "category": "prefix",
+      "pack": "hungry",
+      "tags": [
+        "hungry"
+      ],
+      "venue": "food",
+      "defaultEnabled": true,
+      "durationSec": 1.536,
+      "bytes": 6572,
+      "method": "carrier-cut"
+    },
+    {
+      "key": "prefix.hungry03",
+      "text": "口水快要忍不住的來賓",
+      "file": "prefix/hungry03.mp3",
+      "category": "prefix",
+      "pack": "hungry",
+      "tags": [
+        "hungry"
+      ],
+      "venue": "food",
+      "defaultEnabled": true,
+      "durationSec": 1.722,
+      "bytes": 7340,
+      "method": "carrier-cut"
+    },
+    {
+      "key": "prefix.hungry04",
+      "text": "聞到香味就走不動的來賓",
+      "file": "prefix/hungry04.mp3",
+      "category": "prefix",
+      "pack": "hungry",
+      "tags": [
+        "hungry"
+      ],
+      "venue": "food",
+      "defaultEnabled": true,
+      "durationSec": 1.989,
+      "bytes": 8396,
+      "method": "carrier-cut"
+    },
+    {
+      "key": "prefix.hungry05",
+      "text": "準備大吃一頓的來賓",
+      "file": "prefix/hungry05.mp3",
+      "category": "prefix",
+      "pack": "hungry",
+      "tags": [
+        "hungry"
+      ],
+      "venue": "food",
+      "defaultEnabled": true,
+      "durationSec": 1.663,
+      "bytes": 7148,
+      "method": "carrier-cut"
+    },
+    {
+      "key": "prefix.hungry06",
+      "text": "心裡已經拿好筷子的來賓",
+      "file": "prefix/hungry06.mp3",
+      "category": "prefix",
+      "pack": "hungry",
+      "tags": [
+        "hungry"
+      ],
+      "venue": "food",
+      "defaultEnabled": true,
+      "durationSec": 1.939,
+      "bytes": 8204,
+      "method": "carrier-cut"
+    },
+    {
+      "key": "prefix.hungry07",
+      "text": "肚子咕嚕咕嚕在催的來賓",
+      "file": "prefix/hungry07.mp3",
+      "category": "prefix",
+      "pack": "hungry",
+      "tags": [
+        "hungry"
+      ],
+      "venue": "food",
+      "defaultEnabled": true,
+      "durationSec": 1.971,
+      "bytes": 8396,
+      "method": "carrier-cut"
+    },
+    {
+      "key": "prefix.hungry08",
+      "text": "餓到眼睛都在發亮的來賓",
+      "file": "prefix/hungry08.mp3",
+      "category": "prefix",
+      "pack": "hungry",
+      "tags": [
+        "hungry"
+      ],
+      "venue": "food",
+      "defaultEnabled": true,
+      "durationSec": 1.894,
+      "bytes": 8012,
+      "method": "carrier-cut"
+    },
+    {
+      "key": "prefix.hungry09",
+      "text": "美食雷達已經全開的來賓",
+      "file": "prefix/hungry09.mp3",
+      "category": "prefix",
+      "pack": "hungry",
+      "tags": [
+        "hungry"
+      ],
+      "venue": "food",
+      "defaultEnabled": true,
+      "durationSec": 1.989,
+      "bytes": 8396,
+      "method": "carrier-cut"
+    },
+    {
+      "key": "prefix.hungry10",
+      "text": "準備開動的",
+      "file": "prefix/hungry10.mp3",
+      "category": "prefix",
+      "pack": "hungry",
+      "tags": [
+        "hungry"
+      ],
+      "venue": "food",
+      "defaultEnabled": true,
+      "durationSec": 1.003,
+      "bytes": 4460,
+      "method": "carrier-cut"
+    },
+    {
+      "key": "prefix.hungry11",
+      "text": "肚子比誰都準時的",
+      "file": "prefix/hungry11.mp3",
+      "category": "prefix",
+      "pack": "hungry",
+      "tags": [
+        "hungry"
+      ],
+      "venue": "food",
+      "defaultEnabled": true,
+      "durationSec": 1.601,
+      "bytes": 6860,
+      "method": "carrier-cut"
+    },
+    {
+      "key": "prefix.wait01",
+      "text": "耐心滿分的來賓",
+      "file": "prefix/wait01.mp3",
+      "category": "prefix",
+      "pack": "waited",
+      "tags": [
+        "waited"
+      ],
+      "venue": "any",
+      "defaultEnabled": true,
+      "durationSec": 1.265,
+      "bytes": 5516,
+      "method": "carrier-cut"
+    },
+    {
+      "key": "prefix.wait02",
+      "text": "辛苦久等的來賓",
+      "file": "prefix/wait02.mp3",
+      "category": "prefix",
+      "pack": "waited",
+      "tags": [
+        "waited"
+      ],
+      "venue": "any",
+      "defaultEnabled": true,
+      "durationSec": 1.349,
+      "bytes": 5900,
+      "method": "carrier-cut"
+    },
+    {
+      "key": "prefix.wait03",
+      "text": "一直很有耐心等我們的來賓",
+      "file": "prefix/wait03.mp3",
+      "category": "prefix",
+      "pack": "waited",
+      "tags": [
+        "waited"
+      ],
+      "venue": "any",
+      "defaultEnabled": true,
+      "durationSec": 2.022,
+      "bytes": 8588,
+      "method": "carrier-cut"
+    },
+    {
+      "key": "prefix.wait04",
+      "text": "等待終於有回報的來賓",
+      "file": "prefix/wait04.mp3",
+      "category": "prefix",
+      "pack": "waited",
+      "tags": [
+        "waited"
+      ],
+      "venue": "any",
+      "defaultEnabled": true,
+      "durationSec": 1.767,
+      "bytes": 7532,
+      "method": "carrier-cut"
+    },
+    {
+      "key": "prefix.wait05",
+      "text": "手機都快滑到沒電的來賓",
+      "file": "prefix/wait05.mp3",
+      "category": "prefix",
+      "pack": "waited",
+      "tags": [
+        "waited"
+      ],
+      "venue": "any",
+      "defaultEnabled": true,
+      "durationSec": 2.047,
+      "bytes": 8684,
+      "method": "carrier-cut"
+    },
+    {
+      "key": "prefix.wait06",
+      "text": "排隊排到跟隔壁變好朋友的來賓",
+      "file": "prefix/wait06.mp3",
+      "category": "prefix",
+      "pack": "waited",
+      "tags": [
+        "waited"
+      ],
+      "venue": "any",
+      "defaultEnabled": true,
+      "durationSec": 2.442,
+      "bytes": 10220,
+      "method": "carrier-cut"
+    },
+    {
+      "key": "prefix.wait07",
+      "text": "等到望眼欲穿的來賓",
+      "file": "prefix/wait07.mp3",
+      "category": "prefix",
+      "pack": "waited",
+      "tags": [
+        "waited"
+      ],
+      "venue": "any",
+      "defaultEnabled": true,
+      "durationSec": 1.64,
+      "bytes": 7052,
+      "method": "carrier-cut"
+    },
+    {
+      "key": "prefix.wait08",
+      "text": "今天最有耐心的",
+      "file": "prefix/wait08.mp3",
+      "category": "prefix",
+      "pack": "waited",
+      "tags": [
+        "waited"
+      ],
+      "venue": "any",
+      "defaultEnabled": true,
+      "durationSec": 1.394,
+      "bytes": 6092,
+      "method": "carrier-cut"
+    },
+    {
+      "key": "prefix.hope01",
+      "text": "期待了一整天的來賓",
+      "file": "prefix/hope01.mp3",
+      "category": "prefix",
+      "pack": "anticipation",
+      "tags": [
+        "anticipation"
+      ],
+      "venue": "any",
+      "defaultEnabled": true,
+      "durationSec": 1.545,
+      "bytes": 6668,
+      "method": "carrier-cut"
+    },
+    {
+      "key": "prefix.hope02",
+      "text": "今天最幸運的來賓",
+      "file": "prefix/hope02.mp3",
+      "category": "prefix",
+      "pack": "anticipation",
+      "tags": [
+        "anticipation"
+      ],
+      "venue": "any",
+      "defaultEnabled": true,
+      "durationSec": 1.503,
+      "bytes": 6476,
+      "method": "carrier-cut"
+    },
+    {
+      "key": "prefix.hope03",
+      "text": "好事馬上就要發生的來賓",
+      "file": "prefix/hope03.mp3",
+      "category": "prefix",
+      "pack": "anticipation",
+      "tags": [
+        "anticipation"
+      ],
+      "venue": "any",
+      "defaultEnabled": true,
+      "durationSec": 2.071,
+      "bytes": 8780,
+      "method": "carrier-cut"
+    },
+    {
+      "key": "prefix.hope04",
+      "text": "美味正在向您招手的來賓",
+      "file": "prefix/hope04.mp3",
+      "category": "prefix",
+      "pack": "anticipation",
+      "tags": [
+        "anticipation"
+      ],
+      "venue": "food",
+      "defaultEnabled": true,
+      "durationSec": 2.015,
+      "bytes": 8492,
+      "method": "carrier-cut"
+    },
+    {
+      "key": "prefix.hope05",
+      "text": "好料已經在等您的來賓",
+      "file": "prefix/hope05.mp3",
+      "category": "prefix",
+      "pack": "anticipation",
+      "tags": [
+        "anticipation"
+      ],
+      "venue": "food",
+      "defaultEnabled": true,
+      "durationSec": 1.702,
+      "bytes": 7244,
+      "method": "carrier-cut"
+    },
+    {
+      "key": "prefix.hope06",
+      "text": "被美食選中的來賓",
+      "file": "prefix/hope06.mp3",
+      "category": "prefix",
+      "pack": "anticipation",
+      "tags": [
+        "anticipation"
+      ],
+      "venue": "food",
+      "defaultEnabled": true,
+      "durationSec": 1.518,
+      "bytes": 6572,
+      "method": "carrier-cut"
+    },
+    {
+      "key": "prefix.hope07",
+      "text": "準備好好享受的來賓",
+      "file": "prefix/hope07.mp3",
+      "category": "prefix",
+      "pack": "anticipation",
+      "tags": [
+        "anticipation"
+      ],
+      "venue": "any",
+      "defaultEnabled": true,
+      "durationSec": 1.712,
+      "bytes": 7340,
+      "method": "carrier-cut"
+    },
+    {
+      "key": "prefix.hope08",
+      "text": "帶著好心情來的來賓",
+      "file": "prefix/hope08.mp3",
+      "category": "prefix",
+      "pack": "anticipation",
+      "tags": [
+        "anticipation"
+      ],
+      "venue": "any",
+      "defaultEnabled": true,
+      "durationSec": 1.63,
+      "bytes": 6956,
+      "method": "carrier-cut"
+    },
+    {
+      "key": "prefix.hope09",
+      "text": "就是在等這一刻的來賓",
+      "file": "prefix/hope09.mp3",
+      "category": "prefix",
+      "pack": "anticipation",
+      "tags": [
+        "anticipation"
+      ],
+      "venue": "any",
+      "defaultEnabled": true,
+      "durationSec": 1.721,
+      "bytes": 7340,
+      "method": "carrier-cut"
+    },
+    {
+      "key": "prefix.hope10",
+      "text": "今天運氣特別好的",
+      "file": "prefix/hope10.mp3",
+      "category": "prefix",
+      "pack": "anticipation",
+      "tags": [
+        "anticipation"
+      ],
+      "venue": "any",
+      "defaultEnabled": true,
+      "durationSec": 1.6,
+      "bytes": 6860,
+      "method": "carrier-cut"
+    },
+    {
+      "key": "prefix.hope11",
+      "text": "期待到心花怒放的",
+      "file": "prefix/hope11.mp3",
+      "category": "prefix",
+      "pack": "anticipation",
+      "tags": [
+        "anticipation"
+      ],
+      "venue": "any",
+      "defaultEnabled": true,
+      "durationSec": 1.608,
+      "bytes": 6860,
+      "method": "carrier-cut"
+    },
+    {
+      "key": "prefix.weather01",
+      "text": "頂著大太陽趕來的來賓",
+      "file": "prefix/weather01.mp3",
+      "category": "prefix",
+      "pack": "festival",
+      "tags": [
+        "weather",
+        "summer"
+      ],
+      "venue": "any",
+      "defaultEnabled": false,
+      "durationSec": 1.752,
+      "bytes": 7436,
+      "method": "carrier-cut"
+    },
+    {
+      "key": "prefix.weather02",
+      "text": "冒著寒風來暖暖胃的來賓",
+      "file": "prefix/weather02.mp3",
+      "category": "prefix",
+      "pack": "festival",
+      "tags": [
+        "weather",
+        "winter"
+      ],
+      "venue": "food",
+      "defaultEnabled": false,
+      "durationSec": 1.977,
+      "bytes": 8396,
+      "method": "carrier-cut"
+    },
+    {
+      "key": "prefix.weather03",
+      "text": "下雨天也要來吃好料的來賓",
+      "file": "prefix/weather03.mp3",
+      "category": "prefix",
+      "pack": "festival",
+      "tags": [
+        "weather",
+        "rain"
+      ],
+      "venue": "food",
+      "defaultEnabled": false,
+      "durationSec": 2.208,
+      "bytes": 9260,
+      "method": "carrier-cut"
+    },
+    {
+      "key": "prefix.weather04",
+      "text": "熱到需要好好消暑的來賓",
+      "file": "prefix/weather04.mp3",
+      "category": "prefix",
+      "pack": "festival",
+      "tags": [
+        "weather",
+        "summer"
+      ],
+      "venue": "any",
+      "defaultEnabled": false,
+      "durationSec": 1.997,
+      "bytes": 8492,
+      "method": "carrier-cut"
+    },
+    {
+      "key": "prefix.fest01",
+      "text": "新年第一餐就交給我們的來賓",
+      "file": "prefix/fest01.mp3",
+      "category": "prefix",
+      "pack": "festival",
+      "tags": [
+        "festival",
+        "newyear"
+      ],
+      "venue": "food",
+      "defaultEnabled": false,
+      "durationSec": 2.195,
+      "bytes": 9260,
+      "method": "carrier-cut"
+    },
+    {
+      "key": "prefix.fest02",
+      "text": "過年來吃團圓飯的來賓",
+      "file": "prefix/fest02.mp3",
+      "category": "prefix",
+      "pack": "festival",
+      "tags": [
+        "festival",
+        "lunarnewyear"
+      ],
+      "venue": "food",
+      "defaultEnabled": false,
+      "durationSec": 1.885,
+      "bytes": 8012,
+      "method": "carrier-cut"
+    },
+    {
+      "key": "prefix.fest03",
+      "text": "情人節來甜蜜一下的來賓",
+      "file": "prefix/fest03.mp3",
+      "category": "prefix",
+      "pack": "festival",
+      "tags": [
+        "festival",
+        "valentine"
+      ],
+      "venue": "any",
+      "defaultEnabled": false,
+      "durationSec": 1.941,
+      "bytes": 8204,
+      "method": "carrier-cut"
+    },
+    {
+      "key": "prefix.fest04",
+      "text": "母親節帶家人來團聚的來賓",
+      "file": "prefix/fest04.mp3",
+      "category": "prefix",
+      "pack": "festival",
+      "tags": [
+        "festival",
+        "mothersday"
+      ],
+      "venue": "any",
+      "defaultEnabled": false,
+      "durationSec": 2.118,
+      "bytes": 8972,
+      "method": "carrier-cut"
+    },
+    {
+      "key": "prefix.fest05",
+      "text": "端午節來吃飽飽的來賓",
+      "file": "prefix/fest05.mp3",
+      "category": "prefix",
+      "pack": "festival",
+      "tags": [
+        "festival",
+        "dragonboat"
+      ],
+      "venue": "food",
+      "defaultEnabled": false,
+      "durationSec": 1.812,
+      "bytes": 7724,
+      "method": "carrier-cut"
+    },
+    {
+      "key": "prefix.fest06",
+      "text": "中秋節來團圓的來賓",
+      "file": "prefix/fest06.mp3",
+      "category": "prefix",
+      "pack": "festival",
+      "tags": [
+        "festival",
+        "midautumn"
+      ],
+      "venue": "any",
+      "defaultEnabled": false,
+      "durationSec": 1.669,
+      "bytes": 7148,
+      "method": "carrier-cut"
+    },
+    {
+      "key": "prefix.fest07",
+      "text": "聖誕節來跟我們一起過的來賓",
+      "file": "prefix/fest07.mp3",
+      "category": "prefix",
+      "pack": "festival",
+      "tags": [
+        "festival",
+        "christmas"
+      ],
+      "venue": "any",
+      "defaultEnabled": false,
+      "durationSec": 2.234,
+      "bytes": 9452,
+      "method": "carrier-cut"
+    },
+    {
+      "key": "prefix.fest08",
+      "text": "週末來犒賞自己的來賓",
+      "file": "prefix/fest08.mp3",
+      "category": "prefix",
+      "pack": "festival",
+      "tags": [
+        "festival",
+        "weekend"
+      ],
+      "venue": "any",
+      "defaultEnabled": false,
+      "durationSec": 1.804,
+      "bytes": 7724,
+      "method": "carrier-cut"
+    },
+    {
+      "key": "prefix.fest09",
+      "text": "下班來犒賞自己的來賓",
+      "file": "prefix/fest09.mp3",
+      "category": "prefix",
+      "pack": "festival",
+      "tags": [
+        "festival",
+        "evening"
+      ],
+      "venue": "any",
+      "defaultEnabled": false,
+      "durationSec": 1.841,
+      "bytes": 7820,
+      "method": "carrier-cut"
+    },
+    {
+      "key": "prefix.warm01",
+      "text": "我們滿心歡迎的來賓",
+      "file": "prefix/warm01.mp3",
+      "category": "prefix",
+      "pack": "warm",
+      "tags": [
+        "warm"
+      ],
+      "venue": "any",
+      "defaultEnabled": true,
+      "durationSec": 1.581,
+      "bytes": 6764,
+      "method": "carrier-cut"
+    },
+    {
+      "key": "prefix.warm02",
+      "text": "謝謝您選擇我們的來賓",
+      "file": "prefix/warm02.mp3",
+      "category": "prefix",
+      "pack": "warm",
+      "tags": [
+        "warm"
+      ],
+      "venue": "any",
+      "defaultEnabled": true,
+      "durationSec": 1.887,
+      "bytes": 8012,
+      "method": "carrier-cut"
+    },
+    {
+      "key": "prefix.warm03",
+      "text": "一路辛苦趕來的來賓",
+      "file": "prefix/warm03.mp3",
+      "category": "prefix",
+      "pack": "warm",
+      "tags": [
+        "warm"
+      ],
+      "venue": "any",
+      "defaultEnabled": true,
+      "durationSec": 1.656,
+      "bytes": 7052,
+      "method": "carrier-cut"
+    },
+    {
+      "key": "prefix.warm04",
+      "text": "辛苦了一整天的來賓",
+      "file": "prefix/warm04.mp3",
+      "category": "prefix",
+      "pack": "warm",
+      "tags": [
+        "warm"
+      ],
+      "venue": "any",
+      "defaultEnabled": true,
+      "durationSec": 1.581,
+      "bytes": 6764,
+      "method": "carrier-cut"
+    },
+    {
+      "key": "prefix.warm05",
+      "text": "讓今天變得更美好的來賓",
+      "file": "prefix/warm05.mp3",
+      "category": "prefix",
+      "pack": "warm",
+      "tags": [
+        "warm"
+      ],
+      "venue": "any",
+      "defaultEnabled": true,
+      "durationSec": 1.948,
+      "bytes": 8300,
+      "method": "carrier-cut"
+    },
+    {
+      "key": "prefix.warm06",
+      "text": "我們最想好好招待的來賓",
+      "file": "prefix/warm06.mp3",
+      "category": "prefix",
+      "pack": "warm",
+      "tags": [
+        "warm"
+      ],
+      "venue": "any",
+      "defaultEnabled": true,
+      "durationSec": 1.899,
+      "bytes": 8108,
+      "method": "carrier-cut"
+    },
+    {
+      "key": "prefix.warm07",
+      "text": "帶著笑容來的來賓",
+      "file": "prefix/warm07.mp3",
+      "category": "prefix",
+      "pack": "warm",
+      "tags": [
+        "warm"
+      ],
+      "venue": "any",
+      "defaultEnabled": true,
+      "durationSec": 1.442,
+      "bytes": 6284,
+      "method": "carrier-cut"
+    },
+    {
+      "key": "prefix.warm08",
+      "text": "今天的特別貴賓",
+      "file": "prefix/warm08.mp3",
+      "category": "prefix",
+      "pack": "warm",
+      "tags": [
+        "warm"
+      ],
+      "venue": "any",
+      "defaultEnabled": true,
+      "durationSec": 1.322,
+      "bytes": 5804,
+      "method": "carrier-cut"
+    },
+    {
+      "key": "prefix.warm09",
+      "text": "我們一直在等的來賓",
+      "file": "prefix/warm09.mp3",
+      "category": "prefix",
+      "pack": "warm",
+      "tags": [
+        "warm"
+      ],
+      "venue": "any",
+      "defaultEnabled": true,
+      "durationSec": 1.449,
+      "bytes": 6284,
+      "method": "carrier-cut"
+    },
+    {
+      "key": "prefix.warm10",
+      "text": "值得被好好疼愛的來賓",
+      "file": "prefix/warm10.mp3",
+      "category": "prefix",
+      "pack": "warm",
+      "tags": [
+        "warm"
+      ],
+      "venue": "any",
+      "defaultEnabled": true,
+      "durationSec": 1.794,
+      "bytes": 7628,
+      "method": "carrier-cut"
+    },
+    {
+      "key": "prefix.bday01",
+      "text": "今天過生日的壽星來賓",
+      "file": "prefix/bday01.mp3",
+      "category": "prefix",
+      "pack": "warm",
+      "tags": [
+        "birthday"
+      ],
+      "venue": "any",
+      "defaultEnabled": false,
+      "manualOnly": true,
+      "durationSec": 1.878,
+      "bytes": 8012,
+      "method": "carrier-cut"
+    },
+    {
+      "key": "prefix.bday02",
+      "text": "生日快樂的壽星",
+      "file": "prefix/bday02.mp3",
+      "category": "prefix",
+      "pack": "warm",
+      "tags": [
+        "birthday"
+      ],
+      "venue": "any",
+      "defaultEnabled": false,
+      "manualOnly": true,
+      "durationSec": 1.4,
+      "bytes": 6092,
+      "method": "carrier-cut"
+    },
+    {
+      "key": "phrase.seat",
+      "text": "請準備入座",
+      "file": "phrase/seat.mp3",
+      "category": "phrase",
+      "durationSec": 1.082,
+      "bytes": 4844
+    },
+    {
+      "key": "phrase.seat2",
+      "text": "您的座位準備好囉，請跟著服務人員入座",
+      "file": "phrase/seat2.mp3",
+      "category": "phrase",
+      "durationSec": 3.397,
+      "bytes": 14060
+    },
+    {
+      "key": "phrase.desk",
+      "text": "請到櫃台辦理",
+      "file": "phrase/desk.mp3",
+      "category": "phrase",
+      "durationSec": 1.142,
+      "bytes": 5036
+    },
+    {
+      "key": "phrase.recall1",
+      "text": "再叫一次～",
+      "file": "phrase/recall1.mp3",
+      "category": "phrase",
+      "durationSec": 0.788,
+      "bytes": 3596
+    },
+    {
+      "key": "phrase.recall2",
+      "text": "再提醒一次喔～",
+      "file": "phrase/recall2.mp3",
+      "category": "phrase",
+      "durationSec": 1.145,
+      "bytes": 5036
+    },
+    {
+      "key": "phrase.skipped",
+      "text": "已經過號囉，請洽櫃台人員，我們會盡快幫您安排",
+      "file": "phrase/skipped.mp3",
+      "category": "phrase",
+      "durationSec": 4.322,
+      "bytes": 17804
+    },
+    {
+      "key": "counter.1",
+      "text": "請到一號櫃台",
+      "file": "counter/01.mp3",
+      "category": "phrase",
+      "subtype": "counter",
+      "durationSec": 1.27,
+      "bytes": 5516
+    },
+    {
+      "key": "counter.2",
+      "text": "請到二號櫃台",
+      "file": "counter/02.mp3",
+      "category": "phrase",
+      "subtype": "counter",
+      "durationSec": 1.269,
+      "bytes": 5516
+    },
+    {
+      "key": "counter.3",
+      "text": "請到三號櫃台",
+      "file": "counter/03.mp3",
+      "category": "phrase",
+      "subtype": "counter",
+      "durationSec": 1.318,
+      "bytes": 5708
+    },
+    {
+      "key": "counter.4",
+      "text": "請到四號櫃台",
+      "file": "counter/04.mp3",
+      "category": "phrase",
+      "subtype": "counter",
+      "durationSec": 1.315,
+      "bytes": 5708
+    },
+    {
+      "key": "counter.5",
+      "text": "請到五號櫃台",
+      "file": "counter/05.mp3",
+      "category": "phrase",
+      "subtype": "counter",
+      "durationSec": 1.268,
+      "bytes": 5516
+    },
+    {
+      "key": "counter.6",
+      "text": "請到六號櫃台",
+      "file": "counter/06.mp3",
+      "category": "phrase",
+      "subtype": "counter",
+      "durationSec": 1.268,
+      "bytes": 5516
+    },
+    {
+      "key": "counter.7",
+      "text": "請到七號櫃台",
+      "file": "counter/07.mp3",
+      "category": "phrase",
+      "subtype": "counter",
+      "durationSec": 1.346,
+      "bytes": 5900
+    },
+    {
+      "key": "counter.8",
+      "text": "請到八號櫃台",
+      "file": "counter/08.mp3",
+      "category": "phrase",
+      "subtype": "counter",
+      "durationSec": 1.271,
+      "bytes": 5516
+    },
+    {
+      "key": "counter.9",
+      "text": "請到九號櫃台",
+      "file": "counter/09.mp3",
+      "category": "phrase",
+      "subtype": "counter",
+      "durationSec": 1.302,
+      "bytes": 5708
+    },
+    {
+      "key": "counter.10",
+      "text": "請到十號櫃台",
+      "file": "counter/10.mp3",
+      "category": "phrase",
+      "subtype": "counter",
+      "durationSec": 1.304,
+      "bytes": 5708
+    },
+    {
+      "key": "counter.11",
+      "text": "請到十一號櫃台",
+      "file": "counter/11.mp3",
+      "category": "phrase",
+      "subtype": "counter",
+      "durationSec": 1.51,
+      "bytes": 6476
+    },
+    {
+      "key": "counter.12",
+      "text": "請到十二號櫃台",
+      "file": "counter/12.mp3",
+      "category": "phrase",
+      "subtype": "counter",
+      "durationSec": 1.49,
+      "bytes": 6476
+    },
+    {
+      "key": "counter.13",
+      "text": "請到十三號櫃台",
+      "file": "counter/13.mp3",
+      "category": "phrase",
+      "subtype": "counter",
+      "durationSec": 1.528,
+      "bytes": 6572
+    },
+    {
+      "key": "counter.14",
+      "text": "請到十四號櫃台",
+      "file": "counter/14.mp3",
+      "category": "phrase",
+      "subtype": "counter",
+      "durationSec": 1.494,
+      "bytes": 6476
+    },
+    {
+      "key": "counter.15",
+      "text": "請到十五號櫃台",
+      "file": "counter/15.mp3",
+      "category": "phrase",
+      "subtype": "counter",
+      "durationSec": 1.498,
+      "bytes": 6476
+    },
+    {
+      "key": "counter.16",
+      "text": "請到十六號櫃台",
+      "file": "counter/16.mp3",
+      "category": "phrase",
+      "subtype": "counter",
+      "durationSec": 1.487,
+      "bytes": 6380
+    },
+    {
+      "key": "counter.17",
+      "text": "請到十七號櫃台",
+      "file": "counter/17.mp3",
+      "category": "phrase",
+      "subtype": "counter",
+      "durationSec": 1.55,
+      "bytes": 6668
+    },
+    {
+      "key": "counter.18",
+      "text": "請到十八號櫃台",
+      "file": "counter/18.mp3",
+      "category": "phrase",
+      "subtype": "counter",
+      "durationSec": 1.457,
+      "bytes": 6284
+    },
+    {
+      "key": "counter.19",
+      "text": "請到十九號櫃台",
+      "file": "counter/19.mp3",
+      "category": "phrase",
+      "subtype": "counter",
+      "durationSec": 1.49,
+      "bytes": 6476
+    },
+    {
+      "key": "counter.20",
+      "text": "請到二十號櫃台",
+      "file": "counter/20.mp3",
+      "category": "phrase",
+      "subtype": "counter",
+      "durationSec": 1.468,
+      "bytes": 6380
+    },
+    {
+      "key": "counter.21",
+      "text": "請到二十一號櫃台",
+      "file": "counter/21.mp3",
+      "category": "phrase",
+      "subtype": "counter",
+      "durationSec": 1.575,
+      "bytes": 6764
+    },
+    {
+      "key": "counter.22",
+      "text": "請到二十二號櫃台",
+      "file": "counter/22.mp3",
+      "category": "phrase",
+      "subtype": "counter",
+      "durationSec": 1.634,
+      "bytes": 7052
+    },
+    {
+      "key": "counter.23",
+      "text": "請到二十三號櫃台",
+      "file": "counter/23.mp3",
+      "category": "phrase",
+      "subtype": "counter",
+      "durationSec": 1.634,
+      "bytes": 7052
+    },
+    {
+      "key": "counter.24",
+      "text": "請到二十四號櫃台",
+      "file": "counter/24.mp3",
+      "category": "phrase",
+      "subtype": "counter",
+      "durationSec": 1.671,
+      "bytes": 7148
+    },
+    {
+      "key": "counter.25",
+      "text": "請到二十五號櫃台",
+      "file": "counter/25.mp3",
+      "category": "phrase",
+      "subtype": "counter",
+      "durationSec": 1.61,
+      "bytes": 6956
+    },
+    {
+      "key": "counter.26",
+      "text": "請到二十六號櫃台",
+      "file": "counter/26.mp3",
+      "category": "phrase",
+      "subtype": "counter",
+      "durationSec": 1.619,
+      "bytes": 6956
+    },
+    {
+      "key": "counter.27",
+      "text": "請到二十七號櫃台",
+      "file": "counter/27.mp3",
+      "category": "phrase",
+      "subtype": "counter",
+      "durationSec": 1.648,
+      "bytes": 7052
+    },
+    {
+      "key": "counter.28",
+      "text": "請到二十八號櫃台",
+      "file": "counter/28.mp3",
+      "category": "phrase",
+      "subtype": "counter",
+      "durationSec": 1.588,
+      "bytes": 6860
+    },
+    {
+      "key": "counter.29",
+      "text": "請到二十九號櫃台",
+      "file": "counter/29.mp3",
+      "category": "phrase",
+      "subtype": "counter",
+      "durationSec": 1.632,
+      "bytes": 6956
+    },
+    {
+      "key": "counter.30",
+      "text": "請到三十號櫃台",
+      "file": "counter/30.mp3",
+      "category": "phrase",
+      "subtype": "counter",
+      "durationSec": 1.485,
+      "bytes": 6380
+    }
+  ]
+}

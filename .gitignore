@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.wrangler/
+.dev.vars
+scripts/config.staging.env
+scripts/config.production.env
+*.log
+__pycache__/

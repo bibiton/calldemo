@@ -1,0 +1,131 @@
+{
+  "_comment": "叫號語音台詞與參數。改這裡後重跑 scripts/gen-audio.py，只會重生有變動的檔案（以 文字+聲音參數 的雜湊判斷）。",
+  "version": 1,
+  "voice": { "name": "zh-TW-HsiaoChenNeural", "rate": "+6%", "pitch": "+3Hz" },
+  "encode": { "codec": "mp3", "sampleRate": 24000, "channels": 1, "bitrate": "32k" },
+  "trim": { "thresholdDb": -45, "keepLeadMs": 20, "keepTailMs": 40, "fadeOutMs": 20 },
+
+  "numbers": {
+    "from": 1,
+    "to": 999,
+    "combinedLetters": "ABCDEF",
+    "fallbackLetters": "ABCDEFGHIJKLMNOPQRSTUVWXYZ",
+    "suffix": "號"
+  },
+  "counters": { "from": 1, "to": 30, "pattern": "請到{n}號櫃台" },
+
+  "phrases": [
+    { "key": "phrase.seat",     "text": "請準備入座" },
+    { "key": "phrase.seat2",    "text": "您的座位準備好囉，請跟著服務人員入座" },
+    { "key": "phrase.desk",     "text": "請到櫃台辦理" },
+    { "key": "phrase.recall1",  "text": "再叫一次～" },
+    { "key": "phrase.recall2",  "text": "再提醒一次喔～" },
+    { "key": "phrase.skipped",  "text": "已經過號囉，請洽櫃台人員，我們會盡快幫您安排" }
+  ],
+
+  "prefixPacks": [
+    { "key": "standard",     "name": "標準版",     "note": "只說「來賓」，給不要趣味的門店" },
+    { "key": "hungry",       "name": "餓了系",     "note": "餐飲限定（venue=food）" },
+    { "key": "waited",       "name": "等很久系",   "note": "感謝耐心等候" },
+    { "key": "anticipation", "name": "期待系",     "note": "好事要發生了" },
+    { "key": "warm",         "name": "溫馨系",     "note": "歡迎與感謝；含生日（manualOnly，人員手動指定）" },
+    { "key": "festival",     "name": "季節節慶系", "note": "天氣與節日，預設關閉，由門店在當季／當天開啟" }
+  ],
+
+  "prefixes": [
+    { "key": "prefix.std",        "text": "來賓",                         "pack": "standard", "tags": ["standard"],    "venue": "any",  "defaultEnabled": true },
+
+    { "key": "prefix.hungry01",   "text": "肚子正在打鼓的來賓",             "pack": "hungry", "tags": ["hungry"],      "venue": "food", "defaultEnabled": true },
+    { "key": "prefix.hungry02",   "text": "胃已經在敲門的來賓",             "pack": "hungry", "tags": ["hungry"],      "venue": "food", "defaultEnabled": true },
+    { "key": "prefix.hungry03",   "text": "口水快要忍不住的來賓",           "pack": "hungry", "tags": ["hungry"],      "venue": "food", "defaultEnabled": true },
+    { "key": "prefix.hungry04",   "text": "聞到香味就走不動的來賓",         "pack": "hungry", "tags": ["hungry"],      "venue": "food", "defaultEnabled": true },
+    { "key": "prefix.hungry05",   "text": "準備大吃一頓的來賓",             "pack": "hungry", "tags": ["hungry"],      "venue": "food", "defaultEnabled": true },
+    { "key": "prefix.hungry06",   "text": "心裡已經拿好筷子的來賓",         "pack": "hungry", "tags": ["hungry"],      "venue": "food", "defaultEnabled": true },
+    { "key": "prefix.hungry07",   "text": "肚子咕嚕咕嚕在催的來賓",         "pack": "hungry", "tags": ["hungry"],      "venue": "food", "defaultEnabled": true },
+    { "key": "prefix.hungry08",   "text": "餓到眼睛都在發亮的來賓",         "pack": "hungry", "tags": ["hungry"],      "venue": "food", "defaultEnabled": true },
+    { "key": "prefix.hungry09",   "text": "美食雷達已經全開的來賓",         "pack": "hungry", "tags": ["hungry"],      "venue": "food", "defaultEnabled": true },
+    { "key": "prefix.hungry10",   "text": "準備開動的",                     "pack": "hungry", "tags": ["hungry"],      "venue": "food", "defaultEnabled": true },
+    { "key": "prefix.hungry11",   "text": "肚子比誰都準時的",               "pack": "hungry", "tags": ["hungry"],      "venue": "food", "defaultEnabled": true },
+
+    { "key": "prefix.wait01",     "text": "耐心滿分的來賓",                 "pack": "waited", "tags": ["waited"],      "venue": "any",  "defaultEnabled": true },
+    { "key": "prefix.wait02",     "text": "辛苦久等的來賓",                 "pack": "waited", "tags": ["waited"],      "venue": "any",  "defaultEnabled": true },
+    { "key": "prefix.wait03",     "text": "一直很有耐心等我們的來賓",       "pack": "waited", "tags": ["waited"],      "venue": "any",  "defaultEnabled": true },
+    { "key": "prefix.wait04",     "text": "等待終於有回報的來賓",           "pack": "waited", "tags": ["waited"],      "venue": "any",  "defaultEnabled": true },
+    { "key": "prefix.wait05",     "text": "手機都快滑到沒電的來賓",         "pack": "waited", "tags": ["waited"],      "venue": "any",  "defaultEnabled": true },
+    { "key": "prefix.wait06",     "text": "排隊排到跟隔壁變好朋友的來賓",   "pack": "waited", "tags": ["waited"],      "venue": "any",  "defaultEnabled": true },
+    { "key": "prefix.wait07",     "text": "等到望眼欲穿的來賓",             "pack": "waited", "tags": ["waited"],      "venue": "any",  "defaultEnabled": true },
+    { "key": "prefix.wait08",     "text": "今天最有耐心的",                 "pack": "waited", "tags": ["waited"],      "venue": "any",  "defaultEnabled": true },
+
+    { "key": "prefix.hope01",     "text": "期待了一整天的來賓",             "pack": "anticipation", "tags": ["anticipation"], "venue": "any",  "defaultEnabled": true },
+    { "key": "prefix.hope02",     "text": "今天最幸運的來賓",               "pack": "anticipation", "tags": ["anticipation"], "venue": "any",  "defaultEnabled": true },
+    { "key": "prefix.hope03",     "text": "好事馬上就要發生的來賓",         "pack": "anticipation", "tags": ["anticipation"], "venue": "any",  "defaultEnabled": true },
+    { "key": "prefix.hope04",     "text": "美味正在向您招手的來賓",         "pack": "anticipation", "tags": ["anticipation"], "venue": "food", "defaultEnabled": true },
+    { "key": "prefix.hope05",     "text": "好料已經在等您的來賓",           "pack": "anticipation", "tags": ["anticipation"], "venue": "food", "defaultEnabled": true },
+    { "key": "prefix.hope06",     "text": "被美食選中的來賓",               "pack": "anticipation", "tags": ["anticipation"], "venue": "food", "defaultEnabled": true },
+    { "key": "prefix.hope07",     "text": "準備好好享受的來賓",             "pack": "anticipation", "tags": ["anticipation"], "venue": "any",  "defaultEnabled": true },
+    { "key": "prefix.hope08",     "text": "帶著好心情來的來賓",             "pack": "anticipation", "tags": ["anticipation"], "venue": "any",  "defaultEnabled": true },
+    { "key": "prefix.hope09",     "text": "就是在等這一刻的來賓",           "pack": "anticipation", "tags": ["anticipation"], "venue": "any",  "defaultEnabled": true },
+    { "key": "prefix.hope10",     "text": "今天運氣特別好的",               "pack": "anticipation", "tags": ["anticipation"], "venue": "any",  "defaultEnabled": true },
+    { "key": "prefix.hope11",     "text": "期待到心花怒放的",               "pack": "anticipation", "tags": ["anticipation"], "venue": "any",  "defaultEnabled": true },
+
+    { "key": "prefix.weather01",  "text": "頂著大太陽趕來的來賓",           "pack": "festival", "tags": ["weather", "summer"], "venue": "any",  "defaultEnabled": false },
+    { "key": "prefix.weather02",  "text": "冒著寒風來暖暖胃的來賓",         "pack": "festival", "tags": ["weather", "winter"], "venue": "food", "defaultEnabled": false },
+    { "key": "prefix.weather03",  "text": "下雨天也要來吃好料的來賓",       "pack": "festival", "tags": ["weather", "rain"],   "venue": "food", "defaultEnabled": false },
+    { "key": "prefix.weather04",  "text": "熱到需要好好消暑的來賓",         "pack": "festival", "tags": ["weather", "summer"], "venue": "any",  "defaultEnabled": false },
+
+    { "key": "prefix.fest01",     "text": "新年第一餐就交給我們的來賓",     "pack": "festival", "tags": ["festival", "newyear"],    "venue": "food", "defaultEnabled": false },
+    { "key": "prefix.fest02",     "text": "過年來吃團圓飯的來賓",           "pack": "festival", "tags": ["festival", "lunarnewyear"], "venue": "food", "defaultEnabled": false },
+    { "key": "prefix.fest03",     "text": "情人節來甜蜜一下的來賓",         "pack": "festival", "tags": ["festival", "valentine"],  "venue": "any",  "defaultEnabled": false },
+    { "key": "prefix.fest04",     "text": "母親節帶家人來團聚的來賓",       "pack": "festival", "tags": ["festival", "mothersday"], "venue": "any",  "defaultEnabled": false },
+    { "key": "prefix.fest05",     "text": "端午節來吃飽飽的來賓",           "pack": "festival", "tags": ["festival", "dragonboat"], "venue": "food", "defaultEnabled": false },
+    { "key": "prefix.fest06",     "text": "中秋節來團圓的來賓",             "pack": "festival", "tags": ["festival", "midautumn"],  "venue": "any",  "defaultEnabled": false },
+    { "key": "prefix.fest07",     "text": "聖誕節來跟我們一起過的來賓",     "pack": "festival", "tags": ["festival", "christmas"],  "venue": "any",  "defaultEnabled": false },
+    { "key": "prefix.fest08",     "text": "週末來犒賞自己的來賓",           "pack": "festival", "tags": ["festival", "weekend"],    "venue": "any",  "defaultEnabled": false },
+    { "key": "prefix.fest09",     "text": "下班來犒賞自己的來賓",           "pack": "festival", "tags": ["festival", "evening"],    "venue": "any",  "defaultEnabled": false },
+
+    { "key": "prefix.warm01",     "text": "我們滿心歡迎的來賓",            "pack": "warm", "tags": ["warm"], "venue": "any",  "defaultEnabled": true },
+    { "key": "prefix.warm02",     "text": "謝謝您選擇我們的來賓",          "pack": "warm", "tags": ["warm"], "venue": "any",  "defaultEnabled": true },
+    { "key": "prefix.warm03",     "text": "一路辛苦趕來的來賓",            "pack": "warm", "tags": ["warm"], "venue": "any",  "defaultEnabled": true },
+    { "key": "prefix.warm04",     "text": "辛苦了一整天的來賓",            "pack": "warm", "tags": ["warm"], "venue": "any",  "defaultEnabled": true },
+    { "key": "prefix.warm05",     "text": "讓今天變得更美好的來賓",        "pack": "warm", "tags": ["warm"], "venue": "any",  "defaultEnabled": true },
+    { "key": "prefix.warm06",     "text": "我們最想好好招待的來賓",        "pack": "warm", "tags": ["warm"], "venue": "any",  "defaultEnabled": true },
+    { "key": "prefix.warm07",     "text": "帶著笑容來的來賓",              "pack": "warm", "tags": ["warm"], "venue": "any",  "defaultEnabled": true },
+    { "key": "prefix.warm08",     "text": "今天的特別貴賓",                "pack": "warm", "tags": ["warm"], "venue": "any",  "defaultEnabled": true },
+    { "key": "prefix.warm09",     "text": "我們一直在等的來賓",            "pack": "warm", "tags": ["warm"], "venue": "any",  "defaultEnabled": true },
+    { "key": "prefix.warm10",     "text": "值得被好好疼愛的來賓",          "pack": "warm", "tags": ["warm"], "venue": "any",  "defaultEnabled": true },
+
+    { "key": "prefix.bday01",     "text": "今天過生日的壽星來賓",           "pack": "warm", "tags": ["birthday"],    "venue": "any",  "defaultEnabled": false, "manualOnly": true },
+    { "key": "prefix.bday02",     "text": "生日快樂的壽星",                 "pack": "warm", "tags": ["birthday"],    "venue": "any",  "defaultEnabled": false, "manualOnly": true }
+  ],
+
+  "gapsMs": {
+    "afterChime": 250,
+    "prefixToNumber": 60,
+    "letterToNumber": 30,
+    "numberToEnding": 220,
+    "recallToPrefix": 160,
+    "betweenRepeats": 900
+  },
+
+  "templates": [
+    { "key": "tpl.counter", "name": "趣味版（櫃台）", "use": "一般叫號、有櫃台",
+      "steps": ["chime", "prefix", "number", "counter"] },
+    { "key": "tpl.seat", "name": "趣味版（入座）", "use": "餐廳候位、不分櫃台",
+      "steps": ["chime", "prefix", "number", "phrase.seat"] },
+    { "key": "tpl.standard", "name": "標準版", "use": "不要趣味的門店",
+      "steps": ["chime", "prefix.std", "number", "counter"] },
+    { "key": "tpl.recall", "name": "重叫版", "use": "人員按「重叫」",
+      "steps": ["chime", "recall", "prefix", "number", "counter"] },
+    { "key": "tpl.skipped", "name": "過號提醒版", "use": "人員按「過號」後播一次",
+      "steps": ["chime", "prefix.std", "number", "phrase.skipped"] }
+  ],
+
+  "demos": [
+    { "file": "demo-standard.mp3",     "pack": "standard",     "template": "tpl.standard", "chime": "chime.dingdong", "prefix": "prefix.std",      "ticket": "A23",  "counter": 2 },
+    { "file": "demo-hungry.mp3",       "pack": "hungry",       "template": "tpl.seat",     "chime": "chime.bright",   "prefix": "prefix.hungry01", "ticket": "B108", "counter": 1 },
+    { "file": "demo-waited.mp3",       "pack": "waited",       "template": "tpl.counter",  "chime": "chime.bell",     "prefix": "prefix.wait06",   "ticket": "A7",   "counter": 3 },
+    { "file": "demo-anticipation.mp3", "pack": "anticipation", "template": "tpl.recall",   "chime": "chime.dingdong", "prefix": "prefix.hope02",   "ticket": "C56",  "counter": 5, "recall": "phrase.recall1" },
+    { "file": "demo-warm.mp3",         "pack": "warm",         "template": "tpl.counter",  "chime": "chime.bell",     "prefix": "prefix.warm01",   "ticket": "D12",  "counter": 1 },
+    { "file": "demo-festival.mp3",     "pack": "festival",     "template": "tpl.seat",     "chime": "chime.bright",   "prefix": "prefix.fest02",   "ticket": "A215", "counter": 1 }
+  ]
+}
