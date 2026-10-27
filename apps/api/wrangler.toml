@@ -1,6 +1,8 @@
 # Worker：API（Hono）＋ StoreQueueDO ＋ queue consumer ＋ cron（08-deploy-and-ops §3）
 # bindings 不會從頂層繼承到 env，每個 env 都完整寫一份。
-name = "qcs-api"
+# 環境只有兩個（ADR-049）：local（本機／測試，名稱維持 qcs-*-local，測試與 E2E 依賴，勿改）與 production（唯一部署環境）。
+# 頂層不部署：scripts/ 一律帶 --env production；誤跑無 env 的 wrangler deploy 也只會建出名為 call-api 的空殼。
+name = "call-api"
 main = "src/index.ts"
 compatibility_date = "2026-10-01"
 compatibility_flags = ["nodejs_compat"]
@@ -57,66 +59,27 @@ max_retries = 3
 [env.local.triggers]
 crons = ["5 * * * *", "30 19 * * *"]
 
-# ---------- staging ----------
-[env.staging]
-name = "qcs-api-staging"
-routes = [{ pattern = "api.staging.example.com", custom_domain = true }]
-vars = { ENV = "staging", APP_ORIGINS = "https://q.staging.example.com,https://staff.staging.example.com,https://display.staging.example.com,https://store.staging.example.com,https://admin.staging.example.com", MEDIA_BASE = "https://media.staging.example.com", CUSTOMER_BASE_URL = "https://q.staging.example.com" }
+# staging 已移除（ADR-049：DEMO 只有 production 一個環境，成本最低）。
 
-[[env.staging.d1_databases]]
-binding = "DB"
-database_name = "qcs-db-staging"
-database_id = "__D1_ID_STAGING__"
-migrations_dir = "migrations"
-
-[[env.staging.kv_namespaces]]
-binding = "LICENSE"
-id = "__KV_ID_STAGING__"
-
-[[env.staging.r2_buckets]]
-binding = "MEDIA"
-bucket_name = "qcs-media-staging"
-
-[[env.staging.durable_objects.bindings]]
-name = "STORE_QUEUE"
-class_name = "StoreQueueDO"
-
-[[env.staging.queues.producers]]
-binding = "Q_HISTORY"
-queue = "qcs-history-staging"
-[[env.staging.queues.producers]]
-binding = "Q_PUSH"
-queue = "qcs-push-staging"
-
-[[env.staging.queues.consumers]]
-queue = "qcs-history-staging"
-max_batch_size = 10
-max_batch_timeout = 30
-max_retries = 5
-dead_letter_queue = "qcs-history-dlq-staging"
-[[env.staging.queues.consumers]]
-queue = "qcs-push-staging"
-max_batch_size = 25
-max_batch_timeout = 2
-max_retries = 3
-dead_letter_queue = "qcs-push-dlq-staging"
-
-[[env.staging.analytics_engine_datasets]]
-binding = "USAGE"
-dataset = "qcs_usage_staging"
-
-[env.staging.triggers]
-crons = ["5 * * * *", "30 19 * * *"]
-
-# ---------- production ----------
+# ---------- production（唯一部署環境，ADR-049）----------
+# 共用 Cloudflare 帳號（jjoy.ai 上還有其他產品）：所有資源一律 call- 前綴＋ -production 後綴。
+# scripts/lib.sh 的安全閘在部署前檢查本段每個名稱與網域，不是 call- 開頭就拒絕執行。
+# 不設 DEV_BYPASS_ACCESS（production 帶此旗標時 Worker 拒絕運作）。
+# secrets（不寫進檔案，由 scripts/bootstrap.sh 設定）：JWT_SECRET、PHONE_PEPPER、QR_ROOT_SECRET、VAPID_*、
+#   ACCESS_AUD、ACCESS_TEAM_DOMAIN、ACCESS_ALLOWED_EMAILS、CF_ACCOUNT_ID、AE_API_TOKEN（Account Analytics Read）
 [env.production]
-name = "qcs-api"
-routes = [{ pattern = "api.example.com", custom_domain = true }]
-vars = { ENV = "production", APP_ORIGINS = "https://q.example.com,https://staff.example.com,https://display.example.com,https://store.example.com,https://admin.example.com", MEDIA_BASE = "https://media.example.com", CUSTOMER_BASE_URL = "https://q.example.com" }
+name = "call-api-production"
+routes = [
+  { pattern = "call-api.jjoy.ai", custom_domain = true },
+  # ADR-047：總後台 SPA 呼叫同源 /api/admin/*，由 call-admin.jjoy.ai 前面的 Access 注入 Cf-Access-Jwt-Assertion。
+  # 「Worker route 優先於同 host 的 Pages 自訂網域」未查證；不成立時改用 admin Pages 專案內的 Pages Function 代理（08 §7）。
+  { pattern = "call-admin.jjoy.ai/api/*", zone_name = "jjoy.ai" },
+]
+vars = { ENV = "production", APP_ORIGINS = "https://call-admin.jjoy.ai,https://call-store.jjoy.ai,https://call-staff.jjoy.ai,https://call-display.jjoy.ai,https://call-q.jjoy.ai", MEDIA_BASE = "https://call-media.jjoy.ai", CUSTOMER_BASE_URL = "https://call-q.jjoy.ai", AE_DATASET = "call_usage_production" }
 
 [[env.production.d1_databases]]
 binding = "DB"
-database_name = "qcs-db"
+database_name = "call-db-production"
 database_id = "__D1_ID_PRODUCTION__"
 migrations_dir = "migrations"
 
@@ -126,7 +89,7 @@ id = "__KV_ID_PRODUCTION__"
 
 [[env.production.r2_buckets]]
 binding = "MEDIA"
-bucket_name = "qcs-media"
+bucket_name = "call-media-production"
 
 [[env.production.durable_objects.bindings]]
 name = "STORE_QUEUE"
@@ -134,27 +97,28 @@ class_name = "StoreQueueDO"
 
 [[env.production.queues.producers]]
 binding = "Q_HISTORY"
-queue = "qcs-history"
+queue = "call-history-production"
 [[env.production.queues.producers]]
 binding = "Q_PUSH"
-queue = "qcs-push"
+queue = "call-push-production"
 
 [[env.production.queues.consumers]]
-queue = "qcs-history"
+queue = "call-history-production"
 max_batch_size = 10
 max_batch_timeout = 30
 max_retries = 5
-dead_letter_queue = "qcs-history-dlq"
+dead_letter_queue = "call-history-dlq-production"
 [[env.production.queues.consumers]]
-queue = "qcs-push"
+queue = "call-push-production"
 max_batch_size = 25
 max_batch_timeout = 2
 max_retries = 3
-dead_letter_queue = "qcs-push-dlq"
+dead_letter_queue = "call-push-dlq-production"
 
+# Analytics Engine dataset 名稱用底線；首次寫入時自動建立，bootstrap 不需建立
 [[env.production.analytics_engine_datasets]]
 binding = "USAGE"
-dataset = "qcs_usage"
+dataset = "call_usage_production"
 
 [env.production.triggers]
 crons = ["5 * * * *", "30 19 * * *"]
