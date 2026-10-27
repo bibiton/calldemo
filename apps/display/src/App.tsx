@@ -1,0 +1,170 @@
+import { useEffect, useState } from "react";
+import { isOpenAt, type PublicTicket } from "@qcs/shared";
+import { decodeJwt, store } from "./lib/env";
+import { useDisplay } from "./useDisplay";
+import { QrPanel } from "./components/QrPanel";
+import { AdArea } from "./components/AdArea";
+
+const TOKEN_KEY = "qcs.display.token";
+
+function readToken(): string | null {
+  const q = new URLSearchParams(location.search).get("token");
+  if (q) {
+    store.set(TOKEN_KEY, q);
+    history.replaceState(null, "", location.pathname);
+    return q;
+  }
+  return store.get(TOKEN_KEY);
+}
+
+export function App() {
+  const [token] = useState(readToken);
+  const claims = token ? decodeJwt(token) : null;
+  if (!token || !claims?.store_id || claims.role !== "display") return <Unpaired />;
+  return <Board token={token} storeId={claims.store_id} />;
+}
+
+function Unpaired() {
+  return (
+    <main className="flex h-full flex-col items-center justify-center gap-[2vh] bg-brand p-[6vw] text-center text-white">
+      <h1 className="text-[4vh] font-black">此叫號面板尚未配對</h1>
+      <p className="max-w-[80vw] text-[2.2vh] leading-relaxed text-white/80">請店長在門店後台「裝置」頁產生配對碼，完成配對後面板會自動開始顯示叫號。</p>
+    </main>
+  );
+}
+
+function useClock(offset: number) {
+  const [now, setNow] = useState(() => Date.now() + offset);
+  useEffect(() => {
+    const iv = setInterval(() => setNow(Date.now() + offset), 1000);
+    return () => clearInterval(iv);
+  }, [offset]);
+  return now;
+}
+
+function counterLabel(t: PublicTicket | null) {
+  return t?.counterNo ? `請到 ${t.counterNo} 號櫃台` : "請到櫃台";
+}
+
+function Board({ token, storeId }: { token: string; storeId: string }) {
+  const { state, conn, gateView, incomplete, ads } = useDisplay(token, storeId);
+  const now = useClock(state.serverOffset);
+  const s = state.store;
+  const tz = s?.timezone ?? "Asia/Taipei";
+  const open = s ? isOpenAt(now, s.businessHours, tz) : true;
+  const time = new Intl.DateTimeFormat("zh-TW", { timeZone: tz, hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(now);
+  const services = s?.services ?? [];
+  const cur = state.current;
+  const recent = state.recent.filter((r) => r.id !== cur?.id).slice(0, 4);
+  const suspended = !!state.suspended || conn === "suspended";
+  const qrPaused = suspended || !open;
+
+  if (suspended) {
+    return (
+      <main className="flex h-full flex-col items-center justify-center gap-[2vh] bg-slate-900 text-center text-white" data-testid="suspended">
+        <h1 className="text-[6vh] font-black">服務暫停</h1>
+        <p className="text-[2.4vh] text-white/70">{state.suspended === "expired" ? "門店服務已到期，請洽平台管理員" : "門店服務暫停中"}</p>
+        <QrPanel storeId={storeId} storeCode={s?.code ?? ""} keyB64={null} baseUrl={null} serverOffset={state.serverOffset} paused />
+      </main>
+    );
+  }
+
+  return (
+    <main className="grid h-full grid-rows-[4.2vh_27vh_37.5vh_1fr] overflow-hidden bg-brand text-white" data-testid="board">
+      {/* 頂欄 */}
+      <header className="flex items-center justify-between gap-[2vw] bg-black/30 px-[3vw]">
+        <div className="flex min-w-0 items-center gap-[1.5vw]">
+          {s?.logoUrl ? <img src={s.logoUrl} alt="" className="h-[3vh] w-auto" /> : <span className="h-[2.6vh] w-[2.6vh] shrink-0 rounded-full bg-accent" aria-hidden />}
+          <h1 className="truncate text-[2.3vh] font-bold">{s?.name ?? "　"}</h1>
+        </div>
+        <div className="flex items-center gap-[2vw]">
+          {conn !== "open" && (
+            <span className="rounded-full bg-amber-500/90 px-[1.5vw] py-[0.3vh] text-[1.5vh] font-bold text-black" data-testid="conn-badge">
+              連線中…
+            </span>
+          )}
+          {incomplete && <span className="text-[1.4vh] text-white/70">語音素材不完整</span>}
+          <time className="text-[2.3vh] font-bold tabular-nums">{time}</time>
+        </div>
+      </header>
+
+      {/* 目前叫號 */}
+      <section className="flex flex-col items-center justify-center gap-[1vh] px-[3vw]" aria-live="polite" data-testid="call-panel">
+        {open ? (
+          <>
+            <p className="text-[2.6vh] font-bold tracking-[0.4em] text-white/80">目前叫號</p>
+            <p
+              key={state.flashKey}
+              className={`text-[min(24vw,13.5vh)] leading-none font-black tracking-[0.06em] text-accent tabular-nums ${state.flashKey ? "animate-[qcs-flash_0.6s_ease-in-out_3]" : ""}`}
+              data-testid="current-number"
+            >
+              {cur?.number ?? "—"}
+            </p>
+            <p className="text-[4.2vh] font-bold" data-testid="current-counter">
+              {cur ? counterLabel(cur) : "請稍候"}
+            </p>
+          </>
+        ) : (
+          <>
+            <p className="text-[7vh] font-black">休息中</p>
+            <p className="text-[2.4vh] text-white/80">{hoursText(s?.businessHours ?? [])}</p>
+          </>
+        )}
+      </section>
+
+      {/* 廣告（不與 QR 區重疊：版面排除，不是疊上去） */}
+      <section className="overflow-hidden">
+        <AdArea token={token} ads={ads} />
+      </section>
+
+      {/* 近期叫號＋等候；右側留給固定 QR */}
+      <section className="flex min-w-0 flex-col gap-[1.2vh] py-[1.6vh] pr-[calc(min(49vw,27.5vh)+4vw)] pl-[3vw]">
+        <h2 className="text-[2.2vh] font-bold text-white/70">近期叫號</h2>
+        <ul className="flex flex-col gap-[0.9vh]" data-testid="recent">
+          {recent.length === 0 && <li className="text-[2.4vh] text-white/50">尚無</li>}
+          {recent.map((r) => (
+            <li key={r.id} className="flex items-baseline justify-between gap-[1vw] border-b border-white/10 pb-[0.6vh]">
+              <span className="text-[3.6vh] font-black tabular-nums">{r.number}</span>
+              <span className="text-[2.2vh] whitespace-nowrap text-white/80">{r.counterNo ? `${r.counterNo} 號櫃台` : "櫃台"}</span>
+            </li>
+          ))}
+        </ul>
+        <div className="mt-auto rounded-[1vw] bg-white/10 px-[2vw] py-[1vh]" data-testid="waiting">
+          <p className="text-[1.8vh] text-white/70">等候人數</p>
+          <p className="flex flex-wrap gap-x-[3vw] text-[3vh] font-bold tabular-nums">
+            {services.map((sv) => (
+              <span key={sv.id} className="whitespace-nowrap">
+                {sv.prefix} {sv.name} <span className="text-accent">{state.waiting[sv.id] ?? 0}</span>
+              </span>
+            ))}
+          </p>
+        </div>
+      </section>
+
+      <QrPanel storeId={storeId} storeCode={s?.code ?? ""} keyB64={state.qr?.keyB64 ?? null} baseUrl={state.qr?.baseUrl ?? null} serverOffset={state.serverOffset} paused={qrPaused} />
+
+      {gateView.prompt && (
+        <div
+          role="alertdialog"
+          aria-label="啟用聲音"
+          data-testid="unlock-overlay"
+          data-alert={gateView.alert ? "1" : "0"}
+          className={`fixed inset-0 z-40 flex items-start justify-center bg-black/55 pt-[6vh] ${gateView.alert ? "" : ""}`}
+        >
+          <div
+            className={`mx-[5vw] rounded-[2vw] border-[0.6vw] px-[5vw] py-[3vh] text-center shadow-2xl animate-pulse ${gateView.alert ? "border-red-400 bg-red-700" : "border-accent bg-slate-900"}`}
+          >
+            <p className="text-[3.4vh] font-black">{gateView.alert ? "有新叫號，但目前無法出聲" : "尚未啟用聲音"}</p>
+            <p className="mt-[1.2vh] text-[2.4vh] leading-relaxed">請按遙控器 OK 鍵、鍵盤任一鍵，<br />或點一下畫面，以啟用聲音</p>
+          </div>
+        </div>
+      )}
+    </main>
+  );
+}
+
+function hoursText(hours: { dow: number; open: string; close: string }[]): string {
+  if (!hours.length) return "";
+  const today = hours.find((h) => h.dow === new Date().getDay());
+  return today ? `今日營業時間 ${today.open}–${today.close}` : "今日公休";
+}

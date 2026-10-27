@@ -1,0 +1,11 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Noto Sans TC", "Noto Sans CJK TC", "PingFang TC", "Microsoft JhengHei", system-ui, sans-serif;
+  --color-brand: #14213d;
+  --color-brand-600: #22335c;
+  --color-accent: #f5b301;
+}
+
+html, body, #root { height: 100%; }
+body { margin: 0; font-family: var(--font-sans); -webkit-tap-highlight-color: transparent; }
