@@ -16,7 +16,8 @@
     "lint": "pnpm check:hibernation && pnpm check:secrets && pnpm typecheck",
     "test": "pnpm check:hibernation && pnpm check:secrets && node --test scripts/check-hibernation.test.mjs scripts/check-secrets.test.mjs && bash scripts/lib.test.sh && pnpm -r test",
     "e2e": "playwright test -c e2e/playwright.config.ts",
-    "seed:demo": "node apps/api/scripts/seed-demo.mjs"
+    "seed:demo": "node apps/api/scripts/seed-demo.mjs",
+    "e2e:prod": "playwright test -c e2e/playwright.production.config.ts"
   },
   "devDependencies": {
     "@playwright/test": "^1.64.1"

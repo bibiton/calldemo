@@ -94,6 +94,12 @@ function Board({ token, storeId, onRevoked }: { token: string; storeId: string; 
             </span>
           )}
           {incomplete && <span className="text-[1.4vh] text-white/70">語音素材不完整</span>}
+          {/* DEMO 門店浮水印：放頁首時鐘旁（放廣告區會壓到廣告圖自己的標題文字，2026-10-27 正式網址截圖發現） */}
+          {s?.features?.demo === true && (
+            <span className="rounded-full border border-white/40 px-[1.4vw] py-[0.2vh] text-[1.4vh] font-bold tracking-wider text-white/80" data-testid="demo-badge">
+              DEMO・虛構品牌
+            </span>
+          )}
           <time className="text-[2.3vh] font-bold tabular-nums">{time}</time>
         </div>
       </header>
@@ -127,15 +133,6 @@ function Board({ token, storeId, onRevoked }: { token: string; storeId: string; 
       {/* 廣告（不與 QR 區重疊：版面排除，不是疊上去） */}
       <section className="relative overflow-hidden">
         <AdArea token={token} ads={ads} version={adsVersion} />
-        {/* DEMO 門店浮水印：廣告區左下角（QR 在廣告區下方右側、近期叫號在下方左側，都不重疊） */}
-        {s?.features?.demo === true && (
-          <span
-            className="pointer-events-none absolute bottom-[1vh] left-[2vw] z-10 rounded-full bg-black/55 px-[1.6vw] py-[0.3vh] text-[1.5vh] font-bold tracking-wider text-white/85"
-            data-testid="demo-badge"
-          >
-            DEMO・虛構品牌
-          </span>
-        )}
       </section>
 
       {/* 近期叫號＋等候；右側留給固定 QR */}

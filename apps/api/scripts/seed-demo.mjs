@@ -225,7 +225,7 @@ for (const s of DEMO_STORES) {
   sql.push(upsert("services", { id: `${s.id}_A`, store_id: s.id, name: "內用", prefix: "A", sort_order: 1, enabled: 1, daily_limit: null, created_at: now }));
   sql.push(upsert("services", { id: `${s.id}_B`, store_id: s.id, name: "外帶", prefix: "B", sort_order: 2, enabled: 1, daily_limit: null, created_at: now }));
   for (const [n, pre] of s.counters) {
-    sql.push(upsert("counters", { id: `${s.id}_c${n}`, store_id: s.id, name: `${n} 號櫃台（${pre === "A" ? "內用" : "外帶"}）`, number: n, service_ids: JSON.stringify([`${s.id}_${pre}`]), enabled: 1, created_at: now }));
+    sql.push(upsert("counters", { id: `${s.id}_c${n}`, store_id: s.id, name: `${n} 號櫃台`, number: n, service_ids: JSON.stringify([`${s.id}_${pre}`]), enabled: 1, created_at: now }));
   }
   const userBase = { status: "active", failed_attempts: 0, locked_until: null, created_at: now, updated_at: now };
   sql.push(upsert("users", { id: `${s.id}_admin`, role: "store_admin", store_id: s.id, display_name: "店長", email: adminEmail, password_hash: hash(adminPassword), pin_hash: null, ...userBase }, ["id"], ["created_at", "token_version"]));
