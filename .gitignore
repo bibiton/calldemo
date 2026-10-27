@@ -6,3 +6,9 @@ scripts/config.staging.env
 scripts/config.production.env
 *.log
 __pycache__/
+test-results/*
+!test-results/visual/
+playwright-report/
+apps/display/public/audio
+.e2e-state/
+coverage/
