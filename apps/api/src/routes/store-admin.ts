@@ -10,6 +10,7 @@ import { bearer, invalidateStaff } from "../lib/auth";
 import { issueAccess, issueRefresh, readCookie, refreshCookie, REFRESH_COOKIE, REFRESH_TTL_S, verifyAdminAccess, verifyRefresh, invalidateUserCache } from "../lib/admin-auth";
 import { licenseError, loadStore, refreshStore, toCtx, type StoreRecord } from "../lib/store-ctx";
 import { err, HHMM, isInt, isStr, type AppEnv, type C, type Deps } from "./common";
+import { registerDeviceRoutes } from "./pairing";
 
 const LOCK_AFTER = 5;
 const LOCK_MS = 15 * 60_000;
@@ -320,6 +321,8 @@ export function storeAdminRoutes(deps: Deps) {
     const rec = await change(c, [c.env.DB.prepare("UPDATE stores SET qr_key_version=qr_key_version+1 WHERE id=?").bind(c.get("admin").store_id)], "qr.rotate", null);
     return c.json({ ok: true, keyVersion: rec.qrKeyVersion });
   });
+
+  registerDeviceRoutes(r, { deps, change });
 
   return r;
 }

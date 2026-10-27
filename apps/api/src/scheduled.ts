@@ -9,6 +9,7 @@ export async function runRetention(env: Env, now: number): Promise<Record<string
     ["push_subscriptions", "created_at", now - DAY],
     ["audit_logs", "at", now - 365 * DAY],
     ["transfer_codes", "expires_at", now],
+    ["pairings", "expires_at", now - 3600_000],
   ];
   const out: Record<string, number> = {};
   for (const [table, col, cutoff] of jobs) {

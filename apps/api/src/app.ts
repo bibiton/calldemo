@@ -10,6 +10,7 @@ import { licenseError, loadStore, refreshStore, storeIdByCode, toCtx, type Store
 import { verifyAdminAccess } from "./lib/admin-auth";
 import { err, type AppEnv, type C } from "./routes/common";
 import { storeAdminRoutes } from "./routes/store-admin";
+import { pairingRoutes } from "./routes/pairing";
 
 export const VERSION = "0.1.0";
 const SESSION_TTL_S = 10 * 60;
@@ -318,6 +319,7 @@ export function createApp(deps: AppDeps = {}) {
   });
 
   app.route("/api/store", storeAdminRoutes({ now, storeOr, stub }));
+  app.route("/api", pairingRoutes({ now, storeOr, stub }));
 
   // ---------- 平台管理（Cloudflare Access；M1 僅本機繞過，Access JWT 驗證在 M4 4.1）----------
   app.use("/api/admin/*", async (c, next) => {
