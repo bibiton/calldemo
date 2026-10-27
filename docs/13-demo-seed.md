@@ -2,6 +2,7 @@
 
 目的：對外展示時，叫號面板有完整的品牌感（迴轉壽司連鎖風格的廣告圖片與影片、俏皮語音），並能自動模擬叫號。
 **這份只是規劃**；素材蒐集與種子腳本列在 [09-roadmap](09-roadmap.md) M7。
+M1 階段的本機 seed（`apps/api/scripts/seed-local.mjs`）只用**自製色塊 SVG＋ffmpeg 測試圖樣影片**（`apps/display/public/demo-ads/`），門店名為「示範門市」，不含任何真實或虛構品牌素材。
 
 ## 1. 虛構品牌（不可冒用真實品牌）
 
@@ -35,8 +36,8 @@ Demo 畫面角落固定顯示「DEMO・虛構品牌」浮水印。
 
 | 類型 | 數量 | 規格 |
 |---|---|---|
-| 廣告圖片 | 5～8 張 | 1080×1920 直式、WebP 或 JPEG、每張 ≤ 800 KB（上限 5 MB） |
-| 廣告影片 | 1～2 支 | 1080×1920 直式、MP4 H.264、無音軌或靜音、10～20 秒、每支 ≤ 8 MB（上限 50 MB） |
+| 廣告圖片 | 5～8 張 | **1080×720（3:2，ADR-028）**、WebP 或 JPEG、每張 ≤ 800 KB（上限 5 MB） |
+| 廣告影片 | 1～2 支 | **1080×720（3:2）**、MP4 H.264、無音軌或靜音、10～20 秒、每支 ≤ 8 MB（上限 50 MB） |
 | Logo | 1 | SVG ＋ 512×512 PNG |
 
 建議主題：鮪魚握壽司特寫、鮭魚親子丼、季節限定（秋季：秋刀魚）、平日午間套餐、外帶組合、新品上市、會員活動（皆虛構）。
@@ -44,7 +45,7 @@ Demo 畫面角落固定顯示「DEMO・虛構品牌」浮水印。
 影片轉檔參考（ffmpeg，將直式素材裁成 1080×1920、控制大小）：
 
 ```bash
-ffmpeg -i in.mp4 -vf "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920" \
+ffmpeg -i in.mp4 -vf "scale=1080:720:force_original_aspect_ratio=increase,crop=1080:720" \
   -c:v libx264 -profile:v high -preset slow -crf 26 -an -movflags +faststart -t 15 out.mp4
 ```
 

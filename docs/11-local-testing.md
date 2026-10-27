@@ -13,11 +13,11 @@
 |---|---|---|
 | Worker（Hono） | ✅ | 已查證 |
 | Durable Objects | ✅（官方：DO 目前**一律在本機執行**，不支援 remote binding） | 已查證 |
-| DO WebSocket Hibernation、`setWebSocketAutoResponse`、Alarm | 本機 workerd 執行同一套 runtime，預期可用 | **未查證**（官方頁未逐項說明；M1 第一個任務實測） |
+| DO WebSocket Hibernation、`setWebSocketAutoResponse`、Alarm | ✅ | **已實測（M0 0.2，2026-10-27，`apps/api/test/m0-runtime.test.ts`）**：文字 `ping` 由 auto-response 回 `pong` 且**不進** `webSocketMessage`、`getWebSocketAutoResponseTimestamp` 有值；`evictDurableObject` 驅逐後連線仍在、下一則訊息以新實例喚醒並由 attachment 還原角色、驅逐後 auto-response 照常；`setAlarm` 可由 `runDurableObjectAlarm` 觸發。**本機無法量測 Duration 計費**，夜間平線仍需 staging（M0 0.1） |
 | D1 | ✅ `wrangler d1 migrations apply qcs-db-staging --local --env staging`＋ seed | 已查證支援本機模擬 |
 | KV、R2、Queues | ✅ 本機模擬 | 已查證 |
 | Cron（scheduled handler） | ✅ `curl "http://localhost:8787/cdn-cgi/local/scheduled?format=json"`，或 Local Explorer 介面 | 已查證（舊版的 `--test-scheduled`＋`/__scheduled?cron=` 在現行文件未出現，**未查證**是否仍可用） |
-| Analytics Engine | 本機寫入是否可查 | **未查證**；本機以 no-op stub 包一層 |
+| Analytics Engine | 本機寫入是否可查 | **未查證**；`env.local` 不綁 AE（M4 計量才用到） |
 | Cloudflare Access | ❌ | 本機以 `DEV_BYPASS_ACCESS=1`（只在 `ENV=local` 生效，production 啟動時若偵測到即拒絕啟動）帶入假的平台管理員 |
 
 - 本機資料預設存在 `.wrangler/state`（重開仍在；要清空就刪掉該資料夾）。持久化細節以 wrangler 實際行為為準。
@@ -42,13 +42,14 @@ pnpm dev
 
 ### 3.1 單元／整合：Workers Vitest integration
 
-- 套件：官方文件現行名稱為 **`@cloudflare/vitest-plugin`**，Test APIs 頁同時列出 `@cloudflare/vitest-pool-workers`；實作時以當時 npm 現行版本為準。
+- 套件（2026-10-27 實作時 npm 現況）：**`@cloudflare/vitest-plugin` 1.4.8**（`vitest.config.ts` 用 `cloudflareTest({ wrangler: { configPath, environment: "local" } })`，
+  型別 `@cloudflare/vitest-plugin/types`；`@cloudflare/vitest-pool-workers` 0.23 仍在 npm 但只支援 vitest 4）。測試內以 `import { env } from "cloudflare:workers"` 取 bindings。
 - 測試跑在本機 Miniflare，可用 `cloudflare:test` 的 `runInDurableObject`、`runDurableObjectAlarm`、`evictDurableObject`、
   `applyD1Migrations`、`createScheduledController`、`createMessageBatch`、`getQueueResult`。
 - **已查證的限制**：
   - 儲存隔離是**每個測試檔**，不是每個測試（測試檔結束時復原寫入）。
-  - **「DO 搭配 WebSocket」不支援 per-file storage isolation** → WebSocket 相關測試放在獨立的 vitest project，關閉 isolated storage，
-    每個測試用**不同的 storeId**（＝不同 DO 實例）自行隔離。
+  - 現行版本已**沒有 `isolatedStorage` 選項**（隔離固定為每個測試檔）。實作上不另開 vitest project：**每個測試用不同的 storeId**（＝不同 DO 實例）自行隔離，
+    WebSocket 測試照常可跑（實測 69 個 API 測試全過）。
   - 不支援 V8 原生 coverage，需用 Istanbul。
   - Vitest fake timers 對 KV、R2、cache 模擬器無效 → 時間相關邏輯（營業日、QR 時間窗）以**注入 clock** 測試。
 
@@ -77,7 +78,19 @@ pnpm dev
 | T17 | 趣味語音頻率 | `funEvery=5` 叫 10 次 | 插入 2 次；重叫不插 |
 | T18 | 用量計量不增加寫入 | 比較開／關計量時 DO rows written | 相同 |
 
+### 3.2.1 M1 實作對照（2026-10-27）
+
+T1～T14、T16、T16b、T16c、T17 已寫成測試並通過（`apps/api/test/*`、`apps/display/test/*`、`scripts/check-hibernation.test.mjs`）；
+T15 以 jsdom 單元測試＋E2E 實測影片狀態驗證。T18（用量計量）屬 M4，未實作。
+T6 的「q-history 收到批次」以 `captureHistory` 攔截 DO 送出的訊息驗證；consumer 寫入 D1 另由 T13 以 `createMessageBatch` 驗證。
+
 ### 3.3 E2E：Playwright（手機直版 viewport）
+
+- 執行：`pnpm e2e`。自動起一套**獨立環境**（API 8788、display 6174、customer 6175、staff 6173，state 在 `.e2e-state/` 每次清空重灌 seed），
+  不影響開發用的 8787／517x。截圖輸出 `test-results/visual/`。
+- 本機只有 Chromium：手機以 Chromium 模擬 390×844（Pixel 類 UA、觸控）與 360×640；**未跑 WebKit／iOS Safari**（留待 staging 實機）。
+- 叫號機分兩種瀏覽器設定：`kiosk` 專案帶 `--autoplay-policy=no-user-gesture-required`（等同 ADR-027 方案 C）、
+  `web-blocked` 專案帶 `--autoplay-policy=document-user-activation-required`（一般瀏覽器）。
 
 - 專案設定：`devices["Pixel 7"]`（直立）與 `devices["iPhone 14"]`（直立）；面板用 1080×1920 viewport。
 - 主流程：**掃碼取號 → 人員叫號 → 面板顯示**

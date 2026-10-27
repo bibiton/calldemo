@@ -1,6 +1,8 @@
 # 叫號系統（queue-call-system）— 規劃文件
 
-> 狀態：**規劃階段，尚無程式碼**。`scripts/` 底下只有腳本草稿，**未實測**。
+> 狀態：**M0（本機部分）＋M1 核心叫號已實作**（2026-10-27），本機測試與視覺測試通過；尚未部署任何 Cloudflare 環境。
+> 逐項狀態見 [docs/09-roadmap.md](docs/09-roadmap.md)「M0／M1 實作狀態」，視覺測試紀錄見 [docs/visual-review-M1.md](docs/visual-review-M1.md)。
+> `scripts/` 的部署腳本仍是草稿，**未實測**（M6）。
 > 文件日期：2026-10-27。價格查證日期：2026-10-27（來源見 [docs/02-cost-model.md](docs/02-cost-model.md)）。
 
 ## 一句話
@@ -76,3 +78,15 @@ scripts/      bootstrap.sh / deploy.sh / rollback.sh / smoke.sh（草稿）
 ```
 
 前端一律 React + Vite + Tailwind，**手機直版優先**（mobile-first、portrait）。不用 Next.js。
+
+## 本機開發
+
+```bash
+pnpm install
+node apps/api/scripts/seed-local.mjs   # 套用 D1 migration＋灌示範資料，印出面板／人員端網址與 PIN
+pnpm dev      # API 8787、admin 5171、store 5172、staff 5173、display 5174、customer 5175
+pnpm test     # T12 靜態檢查＋全部 Vitest（api／display／shared）
+pnpm e2e      # Playwright：獨立環境（8788／617x），截圖輸出 test-results/visual/
+```
+
+顧客取號網址由面板上的 QR 產生（面板頁 `data-qr-url` 屬性也有同一網址）。

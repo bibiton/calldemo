@@ -77,7 +77,7 @@ DO 內 `await fetch(push service)` 期間 DO 持續計 wall-clock duration，且
 | 產生 | 一次性以 edge-tts 預錄，放 `assets/audio/` |
 | 部署 | 建置 `apps/display` 時把 `assets/audio/` 複製到 `public/audio/`，**隨 Pages 靜態部署**（不放 R2，ADR-026）；檔名含版本目錄或 hash，可設長期快取 |
 | 播放 | 面板依 `manifest.json` 找出各片段 → Web Audio API `decodeAudioData` 預載 → 叫號時依序 `start(t)` 排程無縫拼接 |
-| 趣味穿插 | 門店後台設定「開／關」與「頻率」（例如每 N 次叫號插一次、或機率 %）；只插在叫號句之後、不插在號碼中間；重叫不插 |
+| 趣味穿插 | 門店後台設定「開／關」與「頻率」（例如每 N 次叫號插一次、或機率 %）；只插在叫號句之後、不插在號碼中間；重叫不插。**現行語音包（manifest v1）尚無 `category: "interjection"` 的句子**：面板邏輯已實作並以測試夾具驗證（T17），素材補齊前開關打開也不會插入（ADR-032） |
 | 叮咚 | manifest 內的多款叮咚，門店後台選擇 |
 | 快取 | Service Worker **漸進快取**（見下），完成後斷網可唸；manifest 版本變更時只補抓差異檔 |
 | 最後備援 | **僅在**素材缺檔或解碼失敗時 → `speechSynthesis`（`lang: zh-TW`）唸基本句型；並在面板角落顯示「語音素材不完整」提醒店長 |

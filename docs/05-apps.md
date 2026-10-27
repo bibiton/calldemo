@@ -45,6 +45,9 @@
 ### QR 區規格
 
 - 位置：右下角，`position: fixed`，`z-index` 高於廣告層；廣告區的版面排除此區（不是疊上去）。
+- 實作版面（1080×1920，皆以 vh/vw 等比縮放）：頂欄 4.2vh（80px）／叫號區 26vh（≈500px，號碼字高 min(24vw,13.5vh)≈259px）／
+  廣告 37.5vh（720px，3:2）／下區其餘（≈620px）。QR 框寬 min(49vw,27.5vh)≈528px，QR 本體（33/41）≈425px＝**39% 螢幕寬**；
+  QR 以 `top: 68.3vh` 定位，保證不與廣告區重疊（E2E 量測把關）。
 - 尺寸：**QR 本體邊長 ≥ 螢幕寬度的 38%**。55 吋直立電視寬約 68 cm → QR 約 26 cm，
   依「掃描距離 ≈ 10 × QR 邊長」的經驗比例，可在約 2.5 公尺掃到。（比例為經驗值，**實機驗證列在 roadmap**）
 - QR 內容盡量短（`https://q.<domain>/s/<code>?w=<n>&k=<10字>`），使用 QR Version ≤ 4、糾錯 M → 模組大、好掃。
@@ -87,6 +90,7 @@ display 前端據此分兩種模式：
 
 **web 模式的提示（支援無觸控）**：若 `AudioContext.state !== "running"` 或 `audio.play()` 被拒（`NotAllowedError`），
 全螢幕覆蓋層「**請按遙控器 OK 鍵、鍵盤任一鍵，或點一下畫面，以啟用聲音**」（大字、閃爍邊框）。
+覆蓋層只負責接收點擊／按鍵，**不遮暗畫面**；提示卡放在廣告區，叫號號碼與 QR 保持完整可見（視覺測試 D5，ADR-031）。
 同時監聽 `keydown`、`pointerup`、`mousedown`、`touchend`，任一觸發即 `audioContext.resume()` 並播一次叮咚確認。
 依 HTML 標準，`keydown` 屬於可觸發使用者啟用（user activation）的事件，**Esc 與瀏覽器保留的快捷鍵除外**
 （[HTML spec: activation triggering input event](https://html.spec.whatwg.org/multipage/interaction.html#activation-triggering-input-event)，2026-10-27 查證）；
@@ -104,7 +108,8 @@ App 首次啟動預設載入 production 網址，切換 staging 的選項以可�
 
 ### 廣告輪播（ADR-016）
 
-- 素材：圖片（JPEG/PNG/WebP，≤ 5 MB）、影片（**MP4 H.264**、建議 1080×1920 直式、**≤ 50 MB**、≤ 120 秒）。
+- 素材：圖片（JPEG/PNG/WebP，≤ 5 MB）、影片（**MP4 H.264**、**建議 1080×720（3:2）**、**≤ 50 MB**、≤ 120 秒）。
+- 廣告區實際尺寸固定 3:2（1080×1920 面板上為 1080×720，ADR-028）；比例不符的素材以 contain 完整顯示、圖片背後補模糊底，**不裁切**。
 - manifest：`GET /api/display/ads/manifest` → `{version, items:[{assetId,url,kind,durationMs,activeFrom,activeTo,dows,startDate,endDate}]}`；
   `url` 指向 `media.<domain>/ads/<owner>/<sha256>.<ext>`（內容不可變，可長期快取）。
 - 面板收到 `ads.manifest{version}` 且版本比本地新 → 重抓 manifest → Service Worker 下載新素材、刪除不再使用的。
@@ -205,7 +210,9 @@ App 首次啟動預設載入 production 網址，切換 staging 的選項以可�
 | 完整姓名、手機遮罩、按住顯示 | ✅ |
 | 今日個人統計 | 後續 |
 
-- 所有操作走既有 WS 送 `cmd`，以 `cmdId` 冪等；按鈕在 `ack` 回來前顯示 loading，避免連點。
+- 所有操作走既有 WS 送 `cmd`，以 `cmdId` 冪等；按鈕在 `ack` 回來前顯示 loading，避免連點。斷線期間未 ack 的指令在重連後以**同一 cmdId** 重送。
+- 「叫下一號」會先把本櫃台目前的號碼（已叫號／服務中）結束為完成，再叫下一號（ADR-029）；要標過號／未到請先按對應按鈕。
+- 等候清單中被「轉櫃台」指定的號碼，以第二行標示「→ 指定 N 號櫃台」，只有該櫃台的「叫下一號」會叫到它。
 - 斷線時按鈕停用並顯示「重新連線中」；重連後以 snapshot 對齊。
 
 ---

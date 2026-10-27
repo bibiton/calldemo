@@ -28,6 +28,29 @@
 | 1.9 | 叫號播放：叮咚→預錄句型（依 `assets/audio/manifest.json`）→趣味穿插，播放佇列，音訊解鎖提示 | T14、T16、T17 | Vitest＋實機聽 |
 | 1.10 | E2E 主流程 | 掃碼取號→叫號→面板顯示 | Playwright 通過 |
 
+### M0／M1 實作狀態（2026-10-27）
+
+✅＝完成條件已在本機達成並有測試；⏳＝本機部分完成、剩餘須 staging／實機；❌＝未做。數字見 `docs/visual-review-M1.md` 與 `pnpm test`／`pnpm e2e`。
+
+| # | 狀態 | 說明 |
+|---|---|---|
+| 0.1 | ⏳ | 最小 DO＝`StoreQueueDO`（acceptWebSocket、auto-response、關店 alarm）已寫且本機測試通過；**部署 staging 連 5 條 WS 過夜看 Duration 平線未做**（本階段不部署） |
+| 0.2 | ✅ | `apps/api/test/m0-runtime.test.ts`；結果寫入 11-local-testing §1 |
+| 0.3 | ⏳ | 本機 workerd 實測 100,000／100,001／600,000 皆可用（不限制）；production 上限待 staging；結果寫入 06-auth |
+| 0.4 | ❌ | Web Push（VAPID＋aes128gcm）未實作；需 Android／iPhone 實機（併入 M2） |
+| 0.5 | ❌ | 需 Cloudflare 帳號 API token 做 GraphQL introspection；本階段不使用真實帳號 |
+| 0.6 | ⏳ | 1080×1920 版面量測 QR 本體＝39% 螢幕寬（E2E 斷言 ≥ 38%）；2～3 公尺實機掃描未做 |
+| 1.1 | ✅ | pnpm monorepo（api／admin／store／staff／display／customer＋shared）；`pnpm dev` 起 8787＋5171～5175 六個 port 實測可開；T12 靜態檢查腳本＋CI workflow |
+| 1.2 | ⏳ | `migrations/0001_init.sql`＋`apps/api/scripts/seed-local.mjs`；本機 `wrangler d1 migrations list` 顯示已套用；staging 未套用 |
+| 1.3 | ✅ | T1、T2、T5、T6、T11 及狀態機全部指令測試通過 |
+| 1.4 | ✅ | T3、T4、裝置／人員／顧客 token、WS upgrade 轉交；平台管理 API 只有本機繞過（Access JWT 驗證屬 M4 4.1） |
+| 1.5 | ⏳ | T7、T8 Vitest 通過；手機實機掃描未做 |
+| 1.6 | ✅ | T9、T10＋Playwright 手機直版（390×844、360×640）通過 |
+| 1.7 | ✅ | PIN 登入（連錯 5 次鎖定）、全部指令有 ack（含重連以同 cmdId 重送）、遮罩＋按住顯示完整手機（寫稽核） |
+| 1.8 | ✅ | 1080×1920 截圖逐張人工檢查＋量測斷言（QR 比例／不重疊／最上層、大字 ≥ 240px、無溢出）；**未做像素基準比對**（版面仍在變動，先以量測斷言代替） |
+| 1.9 | ⏳ | T14、T16、T16b、T16c、T17 通過；E2E 驗證叮咚→前綴→號碼→櫃台 ×2 與佇列不重疊；**實機聽未做**；Service Worker 只做 cache-first，07 §7 分級漸進預載待 M3 3.5；穿插句素材缺（ADR-032） |
+| 1.10 | ✅ | `pnpm e2e` 9 個情境全過（主流程、連叫 3 號、人員操作、顧客錯誤情境、360×640、面板量測、停用、web／app 音訊模式） |
+
 ## M2 — 通知
 
 | # | 任務 | 完成條件 | 驗證方式 |

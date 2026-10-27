@@ -224,12 +224,13 @@ CREATE INDEX idx_audit_at ON audit_logs(at);
 {
   "volume": 0.8,                 // 0~1
   "repeat": 2,                   // 叫號句唸幾次 1~3
-  "chime": "dingdong-1",         // 叮咚音效 id（manifest 內）
+  "chime": "chime.dingdong",     // 叮咚音效＝manifest 的 key（chime.dingdong／chime.bright／chime.bell）
   "lang": "zh-TW",
-  "mode": "fun",                 // "fun" = 俏皮前綴；"standard" = 一律「來賓」
+  "mode": "fun",                 // "fun" = 俏皮前綴；"standard" = 一律「來賓」且完全關閉趣味語音（含穿插）
   "funPrefixProb": 0.3,          // 俏皮前綴出現機率 0~1（其餘次數用標準「來賓」）
-  "enabledPacks": ["food", "weather"],   // 啟用的主題包 tag；空陣列 = 全部
-  "disabledLines": ["prefix-017"],       // 個別停用的單句 id
+  "venue": "any",                // "food" 才使用 manifest 中 venue=food 的句子（餐飲限定）
+  "enabledPacks": ["hungry", "warm"],    // manifest prefixPacks 的 key；空陣列 = 各句 defaultEnabled
+  "disabledLines": ["prefix.wait05"],    // 個別停用的單句（manifest key）；manualOnly（生日）一律不進隨機池
   "interjection": { "enabled": false, "every": 5 },  // 叫號後的趣味穿插語句
   "muteRanges": [{ "from": "12:00", "to": "13:00" }]
 }
@@ -254,7 +255,9 @@ CREATE INDEX idx_audit_at ON audit_logs(at);
 
 ## 3. DO SQLite schema（StoreQueueDO，每店一份）
 
-DO 啟動時以 `blockConcurrencyWhile` 執行 schema migration（`PRAGMA user_version` 遞增）。
+DO 啟動時以 `blockConcurrencyWhile` 執行 schema migration。版本號存在 `meta.schema_version`（實作時改用 meta 列，不依賴 DO SQLite 是否開放 `PRAGMA user_version`；只加不刪）。
+實作版（`apps/api/src/do/schema.ts`）與下列 SQL 的差異：`tickets` 多 `sort_key`（requeue 排隊尾／原位，ADR-029）、
+多 `audit_buffer` 表（`pii.reveal`、面板音訊狀態等先在 DO 暫存，隨 q-history 批次寫 D1）。
 
 ```sql
 CREATE TABLE meta (

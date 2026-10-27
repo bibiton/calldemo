@@ -6,6 +6,8 @@
 wss://api.<domain>/ws/store/<storeId>?role=display|staff|customer&lastSeq=<n>
   驗證：display → device token；staff → staff JWT；customer → ticket token
   Sec-WebSocket-Protocol 帶 token（瀏覽器 WebSocket 無法自訂 header），Worker 驗證後原樣回傳 subprotocol
+  實作：客戶端送 ["qcs.v1", "auth.<token>"]，伺服器回 "qcs.v1"（不回傳 token）。
+  Worker → DO 的轉交以內部 header 帶門店與身分（JSON 經 encodeURIComponent，因 header 只能 ASCII）
 ```
 
 Worker 驗證身分與門店開通狀態後，把 upgrade 請求轉給 `StoreQueueDO`。DO 端：
@@ -100,6 +102,8 @@ pair[1].serializeAttachment({ role, deviceId, staffId, ticketId, counterId }); /
 - 客戶端：`seq <= lastSeq` 的事件直接丟棄（去重）；發現跳號（收到 seq 比預期大 > 1，且中間事件屬於自己可見範圍）→ 主動送 `{t:"resync"}` 取 snapshot。
   - 因為 customer 只收部分事件，customer 端以 `snapshot`／`ticket.*` 的狀態為準，不做跳號檢查。
 - 營業日切換時 seq **不歸零**（seq 是 DO 生命週期內單調遞增）。
+- **不佔 seq 的訊息**（不寫 events、不補推，沒有 `seq` 欄位）：`hello`、`queue.position`、`device.status`。客戶端去重只看有 `seq` 的事件。
+- customer 連線一律收 `snapshot`（只有自己的號碼與前面人數，資料量極小），不做事件補推。
 
 ## 5. 營業時間外（面板夜間策略，ADR-005）
 

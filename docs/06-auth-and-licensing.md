@@ -13,8 +13,11 @@
 ### 密碼／PIN 雜湊
 
 - `crypto.subtle.deriveBits({name:"PBKDF2", hash:"SHA-256", salt, iterations})`，salt 16 bytes 隨機。
-- iterations：**100,000**（Workers 執行環境的 PBKDF2 iteration 上限為 100,000——此上限來自社群經驗，**未查證**；實作第一步先測，
-  若上限不同依實測調整）。CPU 成本只發生在登入時，可忽略。
+- iterations：**100,000**。
+  - **M0 0.3 實測（2026-10-27，本機 workerd，`apps/api/test/m0-runtime.test.ts`）**：100,000 可用；**100,001 與 600,000 也都成功**——
+    本機 workerd **不限制** iteration。社群所說「production 上限 100,000」本機無法驗證，**留待 staging 實測**。
+  - 程式維持 100,000（兩邊都安全），且 `verifySecret` 拒絕 > 100,000 的雜湊字串，避免日後誤設高值在 production 才失敗。
+  - CPU 成本只發生在登入時，可忽略。
 - 格式：`pbkdf2$sha256$<iter>$<salt_b64>$<hash_b64>`，可在未來升級演算法時辨識舊格式。
 - 比對使用 constant-time 比較。
 
