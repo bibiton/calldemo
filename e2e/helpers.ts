@@ -110,3 +110,44 @@ export function qrTokenFor(storeId: string, w: number): string {
   }
   return out.slice(0, 10);
 }
+
+/** 版面量測：無水平捲動；所有可點元素 ≥ 44×44（05-apps §0）。回傳違規清單（空＝通過）。 */
+export async function layoutIssues(page: Page): Promise<string[]> {
+  return page.evaluate(() => {
+    const out: string[] = [];
+    if (document.documentElement.scrollWidth > window.innerWidth + 1) out.push(`水平溢出 scrollWidth=${document.documentElement.scrollWidth} > ${window.innerWidth}`);
+    const sel =
+      'button, a[href], select, input:not([type=hidden]):not([type=checkbox]):not([type=radio]):not([type=file]), [role=switch], [role=radio], label:has(> input[type=checkbox])';
+    for (const el of Array.from(document.querySelectorAll<HTMLElement>(sel))) {
+      const r = el.getBoundingClientRect();
+      const st = getComputedStyle(el);
+      if (r.width === 0 || r.height === 0 || st.visibility === "hidden" || st.display === "none") continue;
+      if (r.height < 43.5 || r.width < 43.5) out.push(`觸控目標太小 ${Math.round(r.width)}×${Math.round(r.height)}：${(el.getAttribute("aria-label") || el.textContent || el.tagName).trim().slice(0, 30)}`);
+    }
+    return out;
+  });
+}
+
+export async function storeLogin(browser: Browser, s: { adminEmail: string; adminPassword: string }, opts: BrowserContextOptions = PHONE) {
+  const ctx = await browser.newContext(opts);
+  const page = await ctx.newPage();
+  await page.goto(URLS.store + "/");
+  await page.getByTestId("email").fill(s.adminEmail);
+  await page.getByTestId("password").fill(s.adminPassword);
+  await page.getByTestId("login-submit").click();
+  await page.getByTestId("board").waitFor();
+  return page;
+}
+
+/** 經 API 直接取號（模擬顧客掃面板 QR）：qrUrl 來自面板的 data-qr-url。 */
+export async function apiTake(qr: string, name: string, phone: string, serviceIdx = 0) {
+  const u = new URL(qr);
+  const code = u.pathname.split("/").pop();
+  const s = await (await fetch(`${URLS.api}/api/s/${code}/session?${u.searchParams}`)).json();
+  const r = await fetch(`${URLS.api}/api/s/${code}/tickets`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ session: s.sessionToken, serviceId: s.services[serviceIdx].id, name, phone, consent: true }),
+  });
+  return r.json();
+}

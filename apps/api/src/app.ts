@@ -209,6 +209,12 @@ export function createApp(deps: AppDeps = {}) {
     });
   });
 
+  // 人員端斷線後確認自己的登入是否仍有效（被停用／重設 PIN／手機解除時回登入畫面）
+  app.get("/api/staff/me", async (c) => {
+    const s = await verifyStaffToken(c.env, bearer(c.req.header("authorization")), now());
+    return s ? c.json({ ok: true, userId: s.sub }) : err(c, 401, "TOKEN_INVALID");
+  });
+
   app.post("/api/staff/login", async (c) => {
     const d = await verifyDeviceToken(c.env, bearer(c.req.header("authorization")), "staff_device", now());
     if (!d) return err(c, 401, "DEVICE_INVALID");

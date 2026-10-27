@@ -106,3 +106,14 @@ describe("3.2 面板配對（配對碼由面板顯示，店長在手機輸入；
     expect((await status("staff", p)).status).toBe(404);
   });
 });
+
+describe("人員端確認登入是否仍有效：GET /api/staff/me", () => {
+  it("有效 → 200；停用後 → 401", async () => {
+    const s = await seedStore();
+    const st: any = await (await req(app, "/api/staff/login", { token: s.staffDeviceToken, body: { userId: s.staffUserId, pin: s.pin } })).json();
+    expect((await req(app, "/api/staff/me", { token: st.token })).status).toBe(200);
+    const t = await adminToken(s);
+    await req(app, `/api/store/staff/${s.staffUserId}/disable`, { method: "POST", token: t });
+    expect((await req(app, "/api/staff/me", { token: st.token })).status).toBe(401);
+  });
+});

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { normalizePhone, validateName } from "@qcs/shared";
 import { api, ApiError } from "./lib/api";
 import { unlockSound } from "./lib/alerts";
-import { requestSubscription, saveSubscription, type PushState } from "./lib/push";
+import { isIos, isStandalone, requestSubscription, saveSubscription, type PushState } from "./lib/push";
 import { Notice, Shell } from "./Shell";
 import { TicketPage } from "./TicketPage";
 import { Resume } from "./Resume";
@@ -147,7 +147,8 @@ function TakeForm({
     if (!canSubmit) return;
     // 同一次點擊（07 §2）：①解鎖響鈴 ②請求通知權限＋訂閱（不擋取號）③送出取號
     unlockSound();
-    const subP = view.push ? requestSubscription(view.push.publicKey) : null;
+    // iOS 的 Safari 分頁沒有 Web Push（只有加入主畫面的 app 才有）：不請求，號碼頁改顯示教學（07 §3）
+    const subP = view.push && !(isIos() && !isStandalone()) ? requestSubscription(view.push.publicKey) : null;
     setBusy(true);
     setError(null);
     try {

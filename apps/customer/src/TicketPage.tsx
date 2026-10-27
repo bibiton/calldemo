@@ -189,7 +189,7 @@ function NotifyCard({ saved, push, conn, onEnable }: { saved: Saved; push: PushS
           請保持此頁開啟、不要鎖定螢幕。
         </p>
       )}
-      {push === "pending" && <p className="mt-1 text-sm text-slate-500">正在開啟背景提醒…</p>}
+      {push === "pending" && !iosSafari && <p className="mt-1 text-sm text-slate-500">正在開啟背景提醒…</p>}
       {push === "denied" && (
         <p className="mt-1 text-sm text-slate-500" data-testid="push-denied">
           通知權限已關閉，無法在背景提醒。
@@ -235,7 +235,8 @@ function IosGuide({ saved }: { saved: Saved }) {
           點 Safari 下方的「分享」<span aria-hidden> ⬆︎</span>
         </li>
         <li>選「加入主畫面」</li>
-        <li>從主畫面開啟「取號」，輸入下方轉交碼</li>
+        <li>從主畫面開啟「取號」</li>
+        <li>輸入下方的轉交碼</li>
       </ol>
       {code && !expired ? (
         <div className="mt-3 text-center" data-testid="xfer">

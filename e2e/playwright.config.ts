@@ -26,7 +26,9 @@ export default defineConfig({
   ],
   projects: [
     // 叫號機 kiosk 等同環境：免手勢自動播放（ADR-027 替代方案 C 的旗標）
-    { name: "kiosk", testMatch: /main-flow|suspend|store-|notify|pairing/, use: { browserName: "chromium", launchOptions: { args: ["--autoplay-policy=no-user-gesture-required"] } } },
+    // 通知：用新版 headless Chromium（headless-shell 的 Notification 權限與通知中心行為不完整）
+    { name: "notify", testMatch: /notify/, use: { browserName: "chromium", channel: "chromium" } },
+    { name: "kiosk", testMatch: /main-flow|suspend|store-|pairing/, use: { browserName: "chromium", launchOptions: { args: ["--autoplay-policy=no-user-gesture-required"] } } },
     // 一般瀏覽器：需要使用者啟用才能出聲
     { name: "web-blocked", testMatch: /audio-gate/, use: { browserName: "chromium", launchOptions: { args: ["--autoplay-policy=document-user-activation-required"] } } },
   ],

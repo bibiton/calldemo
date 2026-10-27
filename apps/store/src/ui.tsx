@@ -238,7 +238,7 @@ export function ErrorBox({ text, onRetry }: { text: string; onRetry?: () => void
     <div className="flex items-start gap-3 rounded-2xl bg-red-50 p-4 text-base text-red-800 ring-1 ring-red-200" role="alert" data-testid="error">
       <span className="flex-1">{text}</span>
       {onRetry && (
-        <button className="min-h-11 shrink-0 font-bold underline" onClick={onRetry}>
+        <button className="min-h-11 min-w-11 shrink-0 rounded-lg px-3 font-bold underline active:bg-red-100" onClick={onRetry}>
           重試
         </button>
       )}

@@ -31,7 +31,8 @@ export async function requestSubscription(publicKey: string | null | undefined):
   if (!publicKey || !pushSupported()) return { sub: null, state: "unsupported" };
   let perm: NotificationPermission = Notification.permission;
   try {
-    if (perm === "default") perm = await Notification.requestPermission();
+    // 已封鎖時 requestPermission 會立即回 denied、不跳提示，所以除了 granted 以外都問一次（有些瀏覽器初始值不可靠）
+    if (perm !== "granted") perm = await Notification.requestPermission();
   } catch {
     return { sub: null, state: "unsupported" };
   }

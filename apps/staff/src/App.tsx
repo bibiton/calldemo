@@ -220,6 +220,7 @@ function Desk({
   const [revealed, setRevealed] = useState<string | null>(null);
   const [devAlert, setDevAlert] = useState<string | null>(null);
   const sock = useRef<QcsSocket | null>(null);
+  const lastCheck = useRef(0);
   const pending = useRef(new Map<string, { msg: any; resolve: (a: any) => void }>());
 
   useEffect(() => {
@@ -228,12 +229,18 @@ function Desk({
       protocols: () => ["qcs.v1", `auth.${session.token}`],
       onStatus: (st, code) => {
         setConn(st);
-        // 4001＝人員被停用／重設 PIN／手機被解除：回到登入（或配對）畫面
-        if (code === 4001) {
-          s.stop();
-          store.del(SESSION_KEY);
-          onRevoked();
-          onLogout();
+        // 人員被停用／重設 PIN／手機被解除：斷線後確認登入是否仍有效（每 15 秒最多查一次），401 才回登入／配對畫面
+        const t = Date.now();
+        if (st === "closed" && (code === 4001 || t - lastCheck.current > 15_000)) {
+          lastCheck.current = t;
+          void api("/api/staff/me", { token: session.token })
+            .catch((e) => {
+              if (!(e instanceof ApiError && e.status === 401)) return;
+              s.stop();
+              store.del(SESSION_KEY);
+              onRevoked();
+              onLogout();
+            });
         }
         // 重連後重送未 ack 的指令（同 cmdId，DO 端冪等，不會叫兩次號）
         if (st === "open") for (const p of pending.current.values()) s.send(p.msg);

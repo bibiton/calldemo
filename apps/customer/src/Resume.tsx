@@ -45,12 +45,12 @@ export function Resume({ onDone }: { onDone: (s: Saved, t: Ticket) => void }) {
         <label className="flex flex-col gap-2">
           <span className="text-base font-bold">轉交碼</span>
           <input
-            className="min-h-14 rounded-xl border border-slate-300 bg-white px-4 text-center text-3xl font-bold tracking-[0.3em] tabular-nums outline-none focus:border-brand focus:ring-2 focus:ring-brand/30"
+            className="min-h-14 rounded-xl border border-slate-300 bg-white px-4 text-center text-3xl font-bold tracking-[0.3em] tabular-nums outline-none placeholder:text-lg placeholder:font-normal placeholder:tracking-normal placeholder:text-slate-400 focus:border-brand focus:ring-2 focus:ring-brand/30"
             value={code}
             onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
             inputMode="numeric"
             autoComplete="one-time-code"
-            placeholder="000000"
+            placeholder="6 位數字"
             aria-invalid={!!err}
             data-testid="xfer-input"
           />

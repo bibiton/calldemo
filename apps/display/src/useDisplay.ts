@@ -57,6 +57,7 @@ export function useDisplay(token: string, storeId: string, onRevoked: () => void
   const [state, dispatch] = useReducer(reducer, initial);
   const [adsVersion, setAdsVersion] = useState(0);
   const revokedRef = useRef(onRevoked);
+  const lastCheck = useRef(0);
   revokedRef.current = onRevoked;
   const warmer = useMemo(() => new AudioWarmer((u) => fetch(u).then((r) => void r.arrayBuffer())), []);
   const [conn, setConn] = useState<SocketStatus>("connecting");
@@ -160,8 +161,11 @@ export function useDisplay(token: string, storeId: string, onRevoked: () => void
       onStatus: (st, code) => {
         setConn(st);
         if (st === "open") audio.resend();
-        // 4001＝店長解除配對：確認 token 真的失效才回配對畫面（避免網路瞬斷誤判）
-        if (code === 4001)
+        // 斷線後確認 token 是否已被解除配對（4001 或重連一直失敗；經代理時關閉碼不一定保留）。
+        // 每 15 秒最多查一次；確認 401 才回配對畫面，網路瞬斷不誤判。
+        const t = Date.now();
+        if (st === "closed" && (code === 4001 || t - lastCheck.current > 15_000)) {
+          lastCheck.current = t;
           void fetch(`${API_BASE}/api/display/ads/manifest`, { headers: { authorization: `Bearer ${token}` } })
             .then((r) => {
               if (r.status === 401) {
@@ -170,6 +174,7 @@ export function useDisplay(token: string, storeId: string, onRevoked: () => void
               }
             })
             .catch(() => {});
+        }
       },
       onMessage: (m) => {
         if (m.t !== "evt") return;
