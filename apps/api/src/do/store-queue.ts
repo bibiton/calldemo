@@ -35,6 +35,8 @@ export interface License {
 export interface StoreCtx {
   store: StoreInfo;
   license: License;
+  /** 門店設定版本（D1 stores.updated_at，單調遞增）。較舊的 ctx 不覆蓋 DO 內較新的設定（isolate 快取最多落後 60 秒）。 */
+  v?: number;
   qr?: { keyB64: string; keyVersion: number; windowSec: number; baseUrl: string };
 }
 
@@ -143,6 +145,8 @@ export class StoreQueueDO extends DurableObject<Env> {
   private cfgJson = "";
   private license: License = { status: "active", expiresAt: null };
   private licenseJson = "";
+  private cfgV = 0;
+  private qr: StoreCtx["qr"] | null = null;
 
   /** 測試／觀測用（記憶體，不落地）。 */
   debug = { messagesHandled: 0, instanceId: crypto.randomUUID() };
@@ -194,6 +198,9 @@ export class StoreQueueDO extends DurableObject<Env> {
       this.licenseJson = l;
       this.license = JSON.parse(l);
     }
+    this.cfgV = Number(this.metaGet("config_v") ?? "0");
+    const q = this.metaGet("qr_json");
+    if (q) this.qr = JSON.parse(q);
   }
 
   private metaGet(key: string): string | null {
@@ -221,6 +228,16 @@ export class StoreQueueDO extends DurableObject<Env> {
   }
 
   private applyCtx(ctx: StoreCtx): void {
+    const v = ctx.v ?? 0;
+    if (v < this.cfgV) return; // 舊版本（其他 isolate 的快取），忽略
+    if (v > this.cfgV) {
+      this.cfgV = v;
+      this.metaSet("config_v", String(v));
+    }
+    if (ctx.qr && JSON.stringify(ctx.qr) !== JSON.stringify(this.qr)) {
+      this.qr = ctx.qr;
+      this.metaSet("qr_json", JSON.stringify(ctx.qr));
+    }
     const s = JSON.stringify(ctx.store);
     if (s !== this.cfgJson) {
       this.metaSet("config", s);
@@ -319,13 +336,7 @@ export class StoreQueueDO extends DurableObject<Env> {
 
   private position(r: Row): { ahead: number; etaMin: number } {
     if (r.status !== "waiting") return { ahead: 0, etaMin: 0 };
-    const ahead = this.sql
-      .exec<{ n: number }>(
-        "SELECT count(*) AS n FROM tickets WHERE status='waiting' AND service_id=? AND sort_key < ?",
-        r.service_id,
-        r.sort_key,
-      )
-      .one().n;
+    const ahead = this.aheadOf(r);
     const avg = this.sql
       .exec<{ a: number | null }>(
         "SELECT avg(ended_at - called_at) AS a FROM tickets WHERE status='done' AND called_at IS NOT NULL AND business_date=?",
@@ -357,7 +368,7 @@ export class StoreQueueDO extends DurableObject<Env> {
     const snap: Snapshot = { businessDate: bd, waiting: this.waitingCounts(), counters, recent, suspended: this.licenseError() };
     if (att.role === "staff") {
       const q = (where: string) =>
-        this.sql.exec<Row>(`SELECT * FROM tickets WHERE ${where} ORDER BY sort_key`).toArray().map((r) => this.staffView(r));
+        this.sql.exec<Row>(`SELECT * FROM tickets WHERE ${where} ORDER BY sort_key, rowid`).toArray().map((r) => this.staffView(r));
       snap.staff = { waiting: q("status='waiting'"), active: q("status IN ('called','serving')"), skipped: q("status='skipped'") };
     }
     if (att.role === "customer" && att.ticketId) {
@@ -449,7 +460,7 @@ export class StoreQueueDO extends DurableObject<Env> {
         seq: this.state.seq,
         role: auth.role,
         store: this.cfg,
-        ...(auth.role === "display" && sctx.qr ? { qr: sctx.qr } : {}),
+        ...(auth.role === "display" && (this.qr ?? sctx.qr) ? { qr: this.qr ?? sctx.qr } : {}),
       },
     });
     const ls = url.searchParams.get("lastSeq");
@@ -603,6 +614,13 @@ export class StoreQueueDO extends DurableObject<Env> {
         this.sql.exec("INSERT INTO take_sessions(jti,at,ticket_id) VALUES(?,?,?)", input.jti, now, act[0].id);
         return { row: act[0], existing: true, events: [] };
       }
+      const limit = this.cfg!.services.find((s) => s.id === input.serviceId)?.dailyLimit;
+      if (limit) {
+        const issued = this.sql
+          .exec<{ n: number }>("SELECT count(*) AS n FROM tickets WHERE service_id=? AND business_date=?", input.serviceId, businessDate(now, this.tz))
+          .one().n;
+        if (issued >= limit) return { error: "DAILY_LIMIT" as const };
+      }
       const row = this.insertTicket(input.serviceId, name, phone, hmac, "qr");
       this.sql.exec("INSERT INTO take_sessions(jti,at,ticket_id) VALUES(?,?,?)", input.jti, now, row.id);
       return { row, existing: false, events: [this.emit("ticket.created", { ...this.pub(row) })] };
@@ -654,7 +672,15 @@ export class StoreQueueDO extends DurableObject<Env> {
 
   private aheadOf(r: Row): number {
     return this.sql
-      .exec<{ n: number }>("SELECT count(*) AS n FROM tickets WHERE status='waiting' AND service_id=? AND sort_key < ?", r.service_id, r.sort_key)
+      .exec<{ n: number }>(
+        // 同一毫秒取號的 sort_key 相同 → 以插入順序（rowid）決定先後
+        `SELECT count(*) AS n FROM tickets WHERE status='waiting' AND service_id=?
+         AND (sort_key < ? OR (sort_key = ? AND rowid < (SELECT rowid FROM tickets WHERE id=?)))`,
+        r.service_id,
+        r.sort_key,
+        r.sort_key,
+        r.id,
+      )
       .one().n;
   }
 
@@ -711,6 +737,31 @@ export class StoreQueueDO extends DurableObject<Env> {
 
   async resume(sctx: StoreCtx): Promise<void> {
     this.applyCtx(sctx);
+  }
+
+  /** 門店後台改了設定：套用並廣播 settings.changed（面板重連取新 hello，人員端重抓門店資料）。 */
+  async configChanged(sctx: StoreCtx): Promise<void> {
+    this.applyCtx(sctx);
+    const e = this.tx(() => this.emit("settings.changed", { version: this.cfgV }));
+    this.broadcast([e]);
+  }
+
+  /** 解除裝置配對／停用人員：立即關閉該身分的連線（4001），之後重連會被 Worker 以 401 拒絕。 */
+  async disconnect(match: { deviceId?: string; staffId?: string }): Promise<number> {
+    let n = 0;
+    for (const ws of this.ctx.getWebSockets()) {
+      const att = ws.deserializeAttachment() as Attachment | null;
+      if (!att) continue;
+      if ((match.deviceId && att.deviceId === match.deviceId) || (match.staffId && att.staffId === match.staffId)) {
+        try {
+          ws.close(4001, "revoked");
+          n++;
+        } catch {
+          /* already closed */
+        }
+      }
+    }
+    return n;
   }
 
   // ---------- 人員指令（ADR-007；cmdId 冪等）----------
@@ -800,7 +851,7 @@ export class StoreQueueDO extends DurableObject<Env> {
       const r = this.sql
         .exec<Row>(
           `SELECT * FROM tickets WHERE status='waiting' AND service_id IN (${svcs.map(() => "?").join(",")})
-           AND (counter_id IS NULL OR counter_id=?) ORDER BY sort_key LIMIT 1`,
+           AND (counter_id IS NULL OR counter_id=?) ORDER BY sort_key, rowid LIMIT 1`,
           ...svcs,
           c.id,
         )

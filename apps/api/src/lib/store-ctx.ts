@@ -8,6 +8,8 @@ export interface StoreRecord {
   license: License;
   qrKeyVersion: number;
   maxDevices: number;
+  maxStaff: number;
+  adQuotaBytes: number;
   v: number;
 }
 
@@ -58,7 +60,7 @@ export async function storeIdByCode(env: Env, code: string, now = Date.now()): P
 async function readStoreFromD1(env: Env, storeId: string): Promise<StoreRecord | null> {
   const [s, svcs, ctrs] = await env.DB.batch([
     env.DB.prepare("SELECT * FROM stores WHERE id=?").bind(storeId),
-    env.DB.prepare("SELECT id,name,prefix,sort_order FROM services WHERE store_id=? AND enabled=1 ORDER BY sort_order, prefix").bind(storeId),
+    env.DB.prepare("SELECT id,name,prefix,sort_order,daily_limit FROM services WHERE store_id=? AND enabled=1 ORDER BY sort_order, prefix").bind(storeId),
     env.DB.prepare("SELECT id,name,number,service_ids FROM counters WHERE store_id=? AND enabled=1 ORDER BY number").bind(storeId),
   ]);
   const row = s.results[0] as any;
@@ -81,12 +83,14 @@ async function readStoreFromD1(env: Env, storeId: string): Promise<StoreRecord |
       features: parse(row.features, {}),
       voiceSettings: parse(row.voice_settings, {}),
       notifyAhead: row.notify_ahead ?? 3,
-      services: (svcs.results as any[]).map((x) => ({ id: x.id, name: x.name, prefix: x.prefix, sortOrder: x.sort_order })),
+      services: (svcs.results as any[]).map((x) => ({ id: x.id, name: x.name, prefix: x.prefix, sortOrder: x.sort_order, dailyLimit: x.daily_limit ?? null })),
       counters: (ctrs.results as any[]).map((x) => ({ id: x.id, name: x.name, number: x.number, serviceIds: parse(x.service_ids, []) })),
     },
     license: { status: row.status, expiresAt: row.expires_at },
     qrKeyVersion: row.qr_key_version,
     maxDevices: row.max_devices,
+    maxStaff: row.max_staff,
+    adQuotaBytes: row.ad_quota_bytes,
     v: row.updated_at,
   };
 }
@@ -99,7 +103,7 @@ export function licenseError(rec: StoreRecord, now: number): "STORE_SUSPENDED" |
 
 /** DO 看到的 license：到期已由 Worker 判斷並轉成 suspended 以外的狀態時，DO 自己也會比對 expiresAt。 */
 export async function toCtx(env: Env, rec: StoreRecord, withQr: boolean): Promise<StoreCtx> {
-  const ctx: StoreCtx = { store: rec.store, license: rec.license };
+  const ctx: StoreCtx = { store: rec.store, license: rec.license, v: rec.v };
   if (withQr) {
     const key = await deriveStoreKey(env.QR_ROOT_SECRET, rec.store.id, rec.qrKeyVersion);
     ctx.qr = { keyB64: b64encode(key), keyVersion: rec.qrKeyVersion, windowSec: 120, baseUrl: env.CUSTOMER_BASE_URL };

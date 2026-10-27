@@ -62,3 +62,8 @@ export async function verifyTicketToken(env: Env, token: string | null, now: num
   const c = await verifyJwt(env.JWT_SECRET, token, now);
   return c && c.role === "customer" ? c : null;
 }
+
+/** 人員被停用／重設 PIN（token_version + 1）時清掉本 isolate 的快取；其他 isolate 最遲 60 秒（06 §1）。 */
+export function invalidateStaff(id: string): void {
+  for (const k of userCache.keys()) if (k.startsWith(id + ":")) userCache.delete(k);
+}

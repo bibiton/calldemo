@@ -11,6 +11,8 @@ export interface ServiceInfo {
   name: string;
   prefix: string;
   sortOrder?: number;
+  /** 每日取號上限；null／undefined = 不限 */
+  dailyLimit?: number | null;
 }
 export interface CounterInfo {
   id: string;

@@ -1,4 +1,4 @@
-import { Hono, type Context } from "hono";
+import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { b64urlDecode, normalizePhone, ulid, validateName, verifyQrToken, deriveStoreKey } from "@qcs/shared";
 import type { Env } from "./env";
@@ -7,6 +7,9 @@ import { signJwt, verifyJwt } from "./lib/jwt";
 import { verifySecret } from "./lib/password";
 import { bearer, protocolToken, verifyDeviceToken, verifyStaffToken, verifyTicketToken } from "./lib/auth";
 import { licenseError, loadStore, refreshStore, storeIdByCode, toCtx, type StoreRecord } from "./lib/store-ctx";
+import { verifyAdminAccess } from "./lib/admin-auth";
+import { err, type AppEnv, type C } from "./routes/common";
+import { storeAdminRoutes } from "./routes/store-admin";
 
 export const VERSION = "0.1.0";
 const SESSION_TTL_S = 10 * 60;
@@ -16,10 +19,6 @@ const XFER_TTL_MS = 10 * 60_000;
 const LOCK_AFTER = 5;
 const LOCK_MS = 15 * 60_000;
 
-type AppEnv = { Bindings: Env };
-type C = Context<AppEnv>;
-
-const err = (c: C, status: number, code: string) => c.json({ code }, status as any);
 
 export interface AppDeps {
   now?: () => number;
@@ -41,7 +40,8 @@ export function createApp(deps: AppDeps = {}) {
     cors({
       origin: (o, c) => ((c.env as Env).APP_ORIGINS ?? "").split(",").includes(o) ? o : null,
       allowHeaders: ["content-type", "authorization"],
-      allowMethods: ["GET", "POST", "OPTIONS"],
+      allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+      credentials: true, // 門店後台 refresh cookie（只送 /api/store/auth，SameSite=Strict）
       maxAge: 86400,
     }),
   );
@@ -291,6 +291,11 @@ export function createApp(deps: AppDeps = {}) {
     } else if (role === "staff") {
       const s = await verifyStaffToken(c.env, token, t);
       if (s) auth = { role, staffId: s.sub, deviceId: s.did, store: s.store_id };
+      else {
+        // 門店後台「即時隊列」：店長以 access token 連線，權限同人員（05-apps §4）
+        const a = await verifyAdminAccess(c.env, token, t);
+        if (a) auth = { role, staffId: a.sub, store: a.store_id };
+      }
     } else if (role === "customer") {
       const s = await verifyTicketToken(c.env, token, t);
       if (s) auth = { role, ticketId: s.sub, store: s.store_id };
@@ -312,6 +317,8 @@ export function createApp(deps: AppDeps = {}) {
     return stub(c, storeId).fetch(req);
   });
 
+  app.route("/api/store", storeAdminRoutes({ now, storeOr, stub }));
+
   // ---------- 平台管理（Cloudflare Access；M1 僅本機繞過，Access JWT 驗證在 M4 4.1）----------
   app.use("/api/admin/*", async (c, next) => {
     if (c.env.ENV === "local" && c.env.DEV_BYPASS_ACCESS === "1") return next();
@@ -320,7 +327,7 @@ export function createApp(deps: AppDeps = {}) {
 
   async function setStatus(c: C, status: "active" | "suspended") {
     const id = c.req.param("id")!;
-    const r = await c.env.DB.prepare("UPDATE stores SET status=?, updated_at=? WHERE id=?").bind(status, now(), id).run();
+    const r = await c.env.DB.prepare("UPDATE stores SET status=?, updated_at=MAX(updated_at+1, ?) WHERE id=?").bind(status, now(), id).run();
     if (!r.meta.changes) return err(c, 404, "STORE_NOT_FOUND");
     const rec = (await refreshStore(c.env, id))!;
     await c.env.DB.prepare("INSERT INTO audit_logs(id,at,actor_type,actor_id,store_id,action) VALUES(?,?,?,?,?,?)")

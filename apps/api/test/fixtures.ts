@@ -10,20 +10,26 @@ export interface Seeded {
   staffDeviceToken: string;
   staffUserId: string;
   pin: string;
+  adminId: string;
+  adminEmail: string;
+  adminPassword: string;
 }
 
 const YEAR = 365 * 24 * 3600;
 
-export async function seedStore(over: { status?: string; expiresAt?: number | null } = {}): Promise<Seeded> {
+export async function seedStore(over: { status?: string; expiresAt?: number | null; maxStaff?: number; maxDevices?: number; adQuota?: number } = {}): Promise<Seeded> {
   const storeId = uniq("st");
   const code = storeId.slice(-6).toUpperCase().replace(/[^A-Z0-9]/g, "X");
   const now = Date.now();
   const pinHash = await hashSecret("123456", 1000);
+  const adminEmail = `${storeId}@example.com`;
+  const pwHash = await hashSecret("correct-horse", 1000);
   await env.DB.batch([
     env.DB.prepare("INSERT OR IGNORE INTO brands(id,name,created_at,updated_at) VALUES('brand_default','預設品牌',?,?)").bind(now, now),
     env.DB.prepare(
-      "INSERT INTO stores(id,brand_id,code,name,status,expires_at,timezone,business_hours,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?)",
-    ).bind(storeId, "brand_default", code, "測試店", over.status ?? "active", over.expiresAt ?? null, "Asia/Taipei", "[]", now, now),
+      "INSERT INTO stores(id,brand_id,code,name,status,expires_at,timezone,business_hours,max_staff,max_devices,ad_quota_bytes,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)",
+    ).bind(storeId, "brand_default", code, "測試店", over.status ?? "active", over.expiresAt ?? null, "Asia/Taipei", "[]", over.maxStaff ?? 10, over.maxDevices ?? 2, over.adQuota ?? 524288000, now, now),
+    env.DB.prepare("INSERT INTO users(id,role,store_id,display_name,email,password_hash,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)").bind(`${storeId}_admin`, "store_admin", storeId, "店長", adminEmail, pwHash, now, now),
     env.DB.prepare("INSERT INTO services(id,store_id,name,prefix,sort_order,created_at) VALUES(?,?,?,?,?,?)").bind(`${storeId}_A`, storeId, "內用", "A", 1, now),
     env.DB.prepare("INSERT INTO services(id,store_id,name,prefix,sort_order,created_at) VALUES(?,?,?,?,?,?)").bind(`${storeId}_B`, storeId, "外帶", "B", 2, now),
     env.DB.prepare("INSERT INTO counters(id,store_id,name,number,service_ids,created_at) VALUES(?,?,?,?,?,?)").bind(`${storeId}_c1`, storeId, "1 號櫃台", 1, "[]", now),
@@ -34,5 +40,5 @@ export async function seedStore(over: { status?: string; expiresAt?: number | nu
   const exp = Math.floor(now / 1000) + YEAR;
   const displayToken = await signJwt(env.JWT_SECRET, { sub: `${storeId}_d1`, role: "display", store_id: storeId, tv: 1, exp });
   const staffDeviceToken = await signJwt(env.JWT_SECRET, { sub: `${storeId}_sd1`, role: "staff_device", store_id: storeId, tv: 1, exp });
-  return { storeId, code, displayToken, staffDeviceToken, staffUserId: `${storeId}_u1`, pin: "123456" };
+  return { storeId, code, displayToken, staffDeviceToken, staffUserId: `${storeId}_u1`, pin: "123456", adminId: `${storeId}_admin`, adminEmail, adminPassword: "correct-horse" };
 }
