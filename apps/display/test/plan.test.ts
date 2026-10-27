@@ -118,40 +118,38 @@ describe("叫號句型（依 assets/audio/manifest.json）", () => {
   });
 });
 
-describe("T17 趣味語音頻率", () => {
-  it("every=5 叫 10 次 → 插入 2 次；重叫不插、不計次", () => {
+describe("T17（改）趣味穿插語音已取消（ADR-033）", () => {
+  it("語音包有 interjection 類句子、舊設定帶 interjection.enabled，叫 10 次也一句都不插", () => {
     const p = createPlanner(
       manifestWithInterjections,
-      normalizeVoiceSettings({ mode: "fun", funPrefixProb: 0, interjection: { enabled: true, every: 5 } }),
+      normalizeVoiceSettings({ mode: "fun", funPrefixProb: 1, interjection: { enabled: true, every: 1 } }),
       seq(0.1),
     );
-    let inserted = 0;
     for (let i = 1; i <= 10; i++) {
-      if (p.plan(call(`A${String(i).padStart(3, "0")}`)).interjected) inserted++;
-      expect(p.plan(call("A001", 2, "recall")).interjected).toBe(false);
+      const keys = p.plan(call(`A${String(i).padStart(3, "0")}`)).segments.map((s) => s.key);
+      expect(keys.some((k) => k.startsWith("interj."))).toBe(false);
+      expect(keys.at(-1)).toBe("counter.2"); // 叫號句之後不接任何句子
     }
-    expect(inserted).toBe(2);
   });
-  it("穿插句接在叫號句之後（最後一段）", () => {
-    const p = createPlanner(manifestWithInterjections, normalizeVoiceSettings({ interjection: { enabled: true, every: 1 } }), seq(0.1));
-    const plan = p.plan(call("A001"));
-    expect(plan.segments.at(-1)!.key.startsWith("interj.")).toBe(true);
-  });
-  it("關閉時不插；語音包沒有穿插句時也不插", () => {
-    const off = createPlanner(manifestWithInterjections, normalizeVoiceSettings({ interjection: { enabled: false, every: 1 } }), seq(0.1));
-    expect(off.plan(call("A001")).interjected).toBe(false);
-    const none = createPlanner(manifest, normalizeVoiceSettings({ interjection: { enabled: true, every: 1 } }), seq(0.1));
-    expect(none.plan(call("A001")).interjected).toBe(false);
-  });
-  it("標準版＝完全關閉趣味語音：即使穿插開著也不插（ADR-025）", () => {
+  it("重叫、過號、標準版也都不插穿插句", () => {
+    const fun = createPlanner(manifestWithInterjections, normalizeVoiceSettings({ interjection: { enabled: true, every: 1 } }), seq(0.1));
     const std = createPlanner(manifestWithInterjections, normalizeVoiceSettings({ mode: "standard", interjection: { enabled: true, every: 1 } }), seq(0.1));
-    expect(std.plan(call("A001")).interjected).toBe(false);
+    for (const plan of [fun.plan(call("A001", 2, "recall")), fun.plan(call("A001", 2, "skipped")), std.plan(call("A002"))]) {
+      expect(plan.segments.some((s) => s.key.startsWith("interj."))).toBe(false);
+    }
+  });
+  it("前綴池不含 interjection 類句子", () => {
+    const pool = createPlanner(manifestWithInterjections, normalizeVoiceSettings({ funPrefixProb: 1 }), Math.random).prefixPool();
+    expect(pool.some((k) => k.startsWith("interj."))).toBe(false);
+  });
+  it("normalizeVoiceSettings 丟棄舊的 interjection 欄位", () => {
+    expect("interjection" in normalizeVoiceSettings({ interjection: { enabled: true, every: 3 } })).toBe(false);
   });
 });
 
 describe("語音設定預設值（03 §門店語音設定、ADR-025）", () => {
   it("缺欄位採預設；越界值夾回範圍", () => {
-    expect(normalizeVoiceSettings({})).toMatchObject({ volume: 0.8, repeat: 2, mode: "fun", funPrefixProb: 0.3, chime: "chime.dingdong", interjection: { enabled: false, every: 5 } });
+    expect(normalizeVoiceSettings({})).toMatchObject({ volume: 0.8, repeat: 2, mode: "fun", funPrefixProb: 0.3, chime: "chime.dingdong" });
     expect(normalizeVoiceSettings({ repeat: 9, volume: 3, funPrefixProb: -1 })).toMatchObject({ repeat: 3, volume: 1, funPrefixProb: 0 });
   });
 });

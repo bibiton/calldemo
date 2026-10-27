@@ -226,17 +226,17 @@ CREATE INDEX idx_audit_at ON audit_logs(at);
   "repeat": 2,                   // 叫號句唸幾次 1~3
   "chime": "chime.dingdong",     // 叮咚音效＝manifest 的 key（chime.dingdong／chime.bright／chime.bell）
   "lang": "zh-TW",
-  "mode": "fun",                 // "fun" = 俏皮前綴；"standard" = 一律「來賓」且完全關閉趣味語音（含穿插）
+  "mode": "fun",                 // "fun" = 俏皮前綴；"standard" = 一律「來賓」
   "funPrefixProb": 0.3,          // 俏皮前綴出現機率 0~1（其餘次數用標準「來賓」）
   "venue": "any",                // "food" 才使用 manifest 中 venue=food 的句子（餐飲限定）
   "enabledPacks": ["hungry", "warm"],    // manifest prefixPacks 的 key；空陣列 = 各句 defaultEnabled
   "disabledLines": ["prefix.wait05"],    // 個別停用的單句（manifest key）；manualOnly（生日）一律不進隨機池
-  "interjection": { "enabled": false, "every": 5 },  // 叫號後的趣味穿插語句
   "muteRanges": [{ "from": "12:00", "to": "13:00" }]
 }
 ```
 
-- 缺欄位一律採預設值（上例數字即預設，`mode` 預設 `"fun"`、`interjection.enabled` 預設 `false`）。
+- 缺欄位一律採預設值（上例數字即預設，`mode` 預設 `"fun"`）。
+- 趣味穿插語音已取消（ADR-033）：不再有 `interjection` 欄位；舊資料若帶此欄位，讀取時忽略、儲存時丟棄。
 - 變更時 DO 廣播 `settings.changed`，面板重抓設定。
 
 ### 用量計量表

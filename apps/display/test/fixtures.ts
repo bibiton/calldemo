@@ -3,7 +3,7 @@ import type { Manifest } from "../src/audio/types";
 
 export const manifest = real as unknown as Manifest;
 
-/** 現行語音包沒有趣味穿插句（category=interjection）；T17 用測試夾具補兩句。 */
+/** 趣味穿插已取消（ADR-033）；夾具補兩句 interjection，用來證明即使素材存在也不會被播出。 */
 export const manifestWithInterjections: Manifest = {
   ...manifest,
   files: [

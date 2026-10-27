@@ -75,7 +75,7 @@ pnpm dev
 | T16 | 未解鎖音訊提示 | `AudioContext.state = "suspended"` | 顯示「請點一下畫面啟用聲音」；收到叫號時提示變紅 |
 | T16b | 音訊被擋回報 | `play()` reject `NotAllowedError` | 送出 `{t:"status",audio:"blocked"}` 一次（狀態不變不重送）；解鎖後送 `ok` |
 | T16c | 模式判斷 | UA 加 `QueueDisplayApp/1.0` 且音訊被擋 | 不顯示任何提示、仍回報 `blocked`；web 模式下 `keydown`（Enter）可解鎖，Esc 不解鎖 |
-| T17 | 趣味語音頻率 | `funEvery=5` 叫 10 次 | 插入 2 次；重叫不插 |
+| T17 | 趣味穿插已取消（ADR-033） | 語音包含 interjection 類句子、舊設定帶 `interjection.enabled` 叫 10 次；重叫／過號／標準版 | 一句都不插；叫號句後不接任何句子；設定正規化時丟棄該欄位 |
 | T18 | 用量計量不增加寫入 | 比較開／關計量時 DO rows written | 相同 |
 
 ### 3.2.1 M1 實作對照（2026-10-27）
