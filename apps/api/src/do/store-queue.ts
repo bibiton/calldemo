@@ -746,6 +746,12 @@ export class StoreQueueDO extends DurableObject<Env> {
     this.broadcast([e]);
   }
 
+  /** 廣告播放清單變更：面板收到 ads.manifest{version} 後重抓 manifest（05-apps §1）。 */
+  async adsChanged(version: number): Promise<void> {
+    const e = this.tx(() => this.emit("ads.manifest", { version }));
+    this.broadcast([e]);
+  }
+
   /** 解除裝置配對／停用人員：立即關閉該身分的連線（4001），之後重連會被 Worker 以 401 拒絕。 */
   async disconnect(match: { deviceId?: string; staffId?: string }): Promise<number> {
     let n = 0;

@@ -11,3 +11,6 @@ CREATE TABLE pairings (
   created_at  INTEGER NOT NULL
 );
 CREATE INDEX idx_pairings_expires ON pairings(expires_at);
+
+-- 廣告素材顯示名稱（原始檔名，門店後台清單用；不含個資）
+ALTER TABLE ad_assets ADD COLUMN name TEXT;

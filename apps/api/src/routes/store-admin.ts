@@ -11,6 +11,7 @@ import { issueAccess, issueRefresh, readCookie, refreshCookie, REFRESH_COOKIE, R
 import { licenseError, loadStore, refreshStore, toCtx, type StoreRecord } from "../lib/store-ctx";
 import { err, HHMM, isInt, isStr, type AppEnv, type C, type Deps } from "./common";
 import { registerDeviceRoutes } from "./pairing";
+import { registerAdRoutes } from "./ads";
 
 const LOCK_AFTER = 5;
 const LOCK_MS = 15 * 60_000;
@@ -323,6 +324,7 @@ export function storeAdminRoutes(deps: Deps) {
   });
 
   registerDeviceRoutes(r, { deps, change });
+  registerAdRoutes(r, { deps, change });
 
   return r;
 }

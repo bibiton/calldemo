@@ -11,6 +11,7 @@ import { verifyAdminAccess } from "./lib/admin-auth";
 import { err, type AppEnv, type C } from "./routes/common";
 import { storeAdminRoutes } from "./routes/store-admin";
 import { pairingRoutes } from "./routes/pairing";
+import { serveLocalMedia } from "./routes/ads";
 
 export const VERSION = "0.1.0";
 const SESSION_TTL_S = 10 * 60;
@@ -48,6 +49,7 @@ export function createApp(deps: AppDeps = {}) {
   );
 
   app.get("/health", (c) => c.json({ ok: true, version: VERSION, env: c.env.ENV }));
+  app.get("/media/*", serveLocalMedia);
 
   /** 門店開啟推播且已設定 VAPID 才給公鑰；前端拿不到就不請求通知權限（07 §2）。 */
   const pushInfo = (c: C, rec: StoreRecord) =>
