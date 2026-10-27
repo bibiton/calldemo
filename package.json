@@ -3,7 +3,9 @@
   "private": true,
   "type": "module",
   "packageManager": "pnpm@10.28.1",
-  "engines": { "node": ">=20" },
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "dev": "pnpm -r --parallel --filter \"./apps/*\" dev",
     "dev:seed": "pnpm --filter @qcs/api seed:local",
@@ -11,7 +13,7 @@
     "typecheck": "pnpm -r typecheck",
     "check:hibernation": "node scripts/check-hibernation.mjs",
     "lint": "pnpm check:hibernation && pnpm typecheck",
-    "test": "pnpm check:hibernation && pnpm -r test",
+    "test": "pnpm check:hibernation && node --test scripts/check-hibernation.test.mjs && pnpm -r test",
     "e2e": "playwright test -c e2e/playwright.config.ts"
   }
 }

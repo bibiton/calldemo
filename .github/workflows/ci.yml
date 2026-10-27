@@ -1,0 +1,19 @@
+# 每次 push／PR：T12 hibernation 靜態檢查＋型別檢查＋全部測試。失敗即擋（ADR-006）。
+# 部署 workflow（deploy.yml）屬 roadmap M6，尚未加入。
+name: ci
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm check:hibernation
+      - run: pnpm typecheck
+      - run: pnpm test
