@@ -159,11 +159,9 @@ describe("T6 關店 Alarm", () => {
 
 describe("同一毫秒取號的先後（sort_key 相同時以插入順序）", () => {
   it("時鐘固定：前面人數依序 0、1、2，叫號也依取號順序", async () => {
-    const { runInDurableObject } = await import("cloudflare:test");
-    const { uniq, take, stubFor, storeCtx } = await import("./helpers");
     const id = uniq();
     const T = Date.now();
-    await runInDurableObject(stubFor(id), (i: any) => i.setClock(() => T));
+    await runInDurableObject(stubFor(id), (i: StoreQueueDO) => i.setClock(() => T));
     const ts: any[] = [];
     for (let i = 1; i <= 3; i++) ts.push(await take(id, i));
     expect(ts.map((t) => t.ticket.ahead)).toEqual([0, 1, 2]);
