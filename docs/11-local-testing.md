@@ -72,6 +72,8 @@ pnpm dev
 | T14 | 叫號播放佇列（display，Vitest + jsdom／Web Audio mock） | 連續 3 筆 `ticket.called` | 依序播放、不重疊；每筆「叮咚→句型×N」；補推的舊叫號不播放 |
 | T15 | 叫號時廣告讓位 | 播放中收到叫號 | 影片 `muted`＋`pause()`，佇列清空後恢復且從原位置續播 |
 | T16 | 未解鎖音訊提示 | `AudioContext.state = "suspended"` | 顯示「請點一下畫面啟用聲音」；收到叫號時提示變紅 |
+| T16b | 音訊被擋回報 | `play()` reject `NotAllowedError` | 送出 `{t:"status",audio:"blocked"}` 一次（狀態不變不重送）；解鎖後送 `ok` |
+| T16c | 模式判斷 | UA 加 `QueueDisplayApp/1.0` 且音訊被擋 | 不顯示任何提示、仍回報 `blocked`；web 模式下 `keydown`（Enter）可解鎖，Esc 不解鎖 |
 | T17 | 趣味語音頻率 | `funEvery=5` 叫 10 次 | 插入 2 次；重叫不插 |
 | T18 | 用量計量不增加寫入 | 比較開／關計量時 DO rows written | 相同 |
 

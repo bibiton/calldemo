@@ -178,6 +178,7 @@ CREATE TABLE billing_inputs (          -- 每月實際帳單（總後台輸入�
 | 請求量暴增 | 今日 `api_requests` > 近 7 日平均 × 3 且 > 5,000 | 灌號、前端 bug 迴圈重試 |
 | 每號請求過高 | `do_requests_est / tickets` > 20 | 心跳錯接、輪詢 |
 | 廣告容量 | ≥ 90% 黃、≥ 100% 紅 | — |
+| 叫號機無法出聲 | 任一面板 `devices.audio_status = 'blocked'` 超過 5 分鐘（ADR-027） | 一般瀏覽器未點擊、kiosk 設定遺失 |
 | 推播失敗率 | `push_failed / push_sent` > 20% | VAPID 設定錯、訂閱過期 |
 
 ## 7. 作為收費依據

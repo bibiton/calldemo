@@ -15,6 +15,7 @@ queue-call-system/
 │  │  ├─ migrations/            D1 migration（0001_init.sql ...）
 │  │  └─ src/
 │  ├─ admin/ store/ staff/ display/ customer/    Vite + React + Tailwind
+│  ├─ display-android/          叫號機 Android WebView 包裝 App（Kotlin，ADR-027）
 ├─ packages/shared/             型別、WS 協定、mask、phone、qr-token
 ├─ assets/audio/                預錄語音素材 + manifest.json（建置時複製進 apps/display/public/audio，隨 Pages 部署）
 └─ scripts/                     bootstrap.sh deploy.sh rollback.sh smoke.sh lib.sh
@@ -238,6 +239,24 @@ dashboard 顯示名稱可能略有不同（例如「Cloudflare Pages」或「Pag
 5. 把 Application 的 **AUD tag** 與 team domain 設為 Worker secret `ACCESS_AUD`、`ACCESS_TEAM_DOMAIN`，
    Worker 對 `/admin/*` 驗證 `Cf-Access-Jwt-Assertion`（雙重保險：即使有人繞過 Access 直打 Worker 也會被擋）。
 
+## 7.5 叫號機 Android 包裝 App（`apps/display-android`，ADR-027）
+
+| 項目 | 規格 |
+|---|---|
+| 內容 | 單一 Activity＋全螢幕 WebView，只載入 `https://display.<domain>/`（網址寫在 App 設定，可在首次啟動輸入 staging／production） |
+| 自動出聲 | `webView.settings.mediaPlaybackRequiresUserGesture = false`；另開 `javaScriptEnabled`、`domStorageEnabled`（Service Worker／Cache Storage 需要） |
+| 開機自啟 | 註冊為 **HOME launcher**（`intent-filter` 含 `category.HOME`），開機即進入 App；另加 `BOOT_COMPLETED` receiver 作輔助。Android 10 起限制從背景啟動 Activity，所以以 launcher 為主（限制細節**未查證**，M8 實測） |
+| Kiosk | immersive 全螢幕（隱藏系統列）；可選 Lock Task mode（需設為 device owner，用 `adb shell dpm set-device-owner` 一次設定） |
+| 螢幕常亮 | `FLAG_KEEP_SCREEN_ON` |
+| 斷網重連 | `ConnectivityManager.NetworkCallback` 網路恢復時通知網頁（網頁本身已有 WS 重連）；主頁載入失敗時 10 秒後重試 |
+| 模式標記 | userAgent 附加 `QueueDisplayApp/<x.y>`（`settings.userAgentString += ...`）＋ JS bridge `QCSNative.info()` 回傳 `{client:"android_app", appVersion}`；display 前端據此進入 app 模式，**完全不顯示「啟用聲音」提示** |
+| 遙控器 | 首次啟動預設 production 網址；設定畫面以 D-pad 可聚焦按鈕操作，不需文字輸入 |
+| 更新 | 網頁更新免重裝（App 只是外殼）；App 本身極少更新，以 APK 側載或 MDM 發佈 |
+| 安全 | 只允許導覽到 `display.<domain>` 與 `media.<domain>`，其他網址一律攔截 |
+
+> `setMediaPlaybackRequiresUserGesture`：Android 官方 API 頁本次無法取得內容，API 細節（加入版本、預設值）**未查證**，以 M8 實機為準。
+> Chrome `--autoplay-policy=no-user-gesture-required` 與企業政策 `AutoplayAllowed`／`AutoplayAllowlist` 見於 [Chrome autoplay policy](https://developer.chrome.com/blog/autoplay)（文章 2017 年更新，**目前是否仍有效未查證**）。
+
 ## 8. 監控
 
 | 指標 | 看哪裡 | 正常值／警示 |
@@ -248,6 +267,7 @@ dashboard 顯示名稱可能略有不同（例如「Cloudflare Pages」或「Pag
 | Queue backlog／DLQ | Queues dashboard | backlog 應趨近 0；DLQ 有訊息即查 |
 | D1 大小 | `wrangler d1 info` | > 7 GB 啟動對策（03-data-model §5） |
 | 每店異常 | 總後台「用量與成本」警示 | 見 12-usage-metering |
+| 叫號機無法出聲 | `devices.audio_status = 'blocked'` | 門店後台與總後台警示；多半是一般瀏覽器未點擊、或 kiosk 設定遺失 |
 
 ## 9. 資料保留 Cron（`30 19 * * *` UTC）
 

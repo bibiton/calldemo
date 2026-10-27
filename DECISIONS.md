@@ -200,3 +200,21 @@
 - **成本**：A 儲存在 10 GB 內含內，但每台面板首次載入約 7,000 次 Class B 讀取（有內含額度與邊緣快取，仍是計量項目），且部署要另寫上傳同步；B **$0**、無請求與流量費、與前端同版本一起發布與回滾。
 - **UX**：相同；B 讓語音與面板程式永遠同版本，不會出現程式新、素材舊的錯配。面板以 Service Worker 漸進快取（叮咚、句型、前綴先；號碼依當日範圍再背景補齊），之後離線可播。
 - **決定**：**B**。R2 只放門店上傳的廣告與 Logo。語音包若成長超過 15,000 檔，改為壓縮成每主題包一個檔案，或改回 R2。
+
+## ADR-027 叫號機免點擊自動出聲：自製 Android WebView 包裝 App
+- **決策者**：業主（方向），AI（查證與規格）
+- **背景**：一般瀏覽器受 autoplay policy 限制，需使用者點擊才能出聲；叫號機斷電重開後若沒人點，叫號沒有聲音 → 違反 UX 底線。叫號機是受控裝置，可以選擇執行環境。
+- **選項**：
+  - A 自製極簡 Android WebView 包裝 App：`setMediaPlaybackRequiresUserGesture(false)`、HOME launcher 開機自啟、全螢幕 kiosk、螢幕常亮、斷網重連、只載入 display 網址；網頁更新免重裝。成本：一次性開發，每台 $0。
+  - B Fully Kiosk Browser：啟用自動播放音訊。成本：PLUS 授權 **€8.90／US$10.99 每台一次性**（[官方授權頁](https://www.fully-kiosk.com/docs/en/legal/fully-plus-license)，2026-10-27 查證；10 台以上可詢量價）；50 店×2 台約 US$1,099。
+  - C 迷你電腦 Chrome／Chromium kiosk＋`--autoplay-policy=no-user-gesture-required` 或企業政策 `AutoplayAllowed`：軟體 $0，硬體較電視盒貴。
+  - D 一般瀏覽器＋「點一下啟用聲音」：$0，但每次斷電都要人去點。
+- **UX**：A、B、C 皆可冷開機免觸碰出聲；D 斷電後無人點擊就無聲（違反底線，只作備援）。
+- **決定**：**A 為主方案**；B、C 為替代（現場已有 Fully 授權或迷你電腦時）；D 保留為備援提示。
+  面板偵測音訊被擋時經 WS 回報，門店後台與總後台顯示警示，讓「無聲」不會靜默發生。
+- **查證狀態**：Chrome flag 與 `AutoplayAllowed`／`AutoplayAllowlist` 見 Chrome 官方 autoplay 文章（2017 年更新，現行有效性**未查證**）；
+  Android `setMediaPlaybackRequiresUserGesture` 官方 API 頁本次無法取得，細節**未查證**；Android 10+ 背景啟動 Activity 限制細節**未查證**。均列入 roadmap M8 實機驗證。
+- **補充（業主，2026-10-27）**：包裝 App 模式下**完全不出現**「點一下啟用聲音」提示（很多螢幕沒有觸控）。
+  App 在 WebView userAgent 附加 `QueueDisplayApp/<x.y>`＋JS bridge `QCSNative`，display 前端據此判斷 app／web 模式；
+  web 模式提示支援無觸控：遙控器 OK、鍵盤任一鍵（依 HTML 標準 `keydown` 可觸發 user activation，Esc 與保留快捷鍵除外，已查證）或點擊。
+  面板配對全程只需遙控器（配對碼由面板顯示、店長在手機輸入）。

@@ -6,7 +6,7 @@
 
 | 對象 | 情境 | 路徑 |
 |---|---|---|
-| 叫號面板 | 一律 | WS `ticket.called` → **叮咚 → 語音唸號 ×N → 廣告恢復**（見 05-apps §1） |
+| 叫號面板 | 一律 | WS `ticket.called` → **叮咚 → 語音唸號 ×N → 廣告恢復**（見 05-apps §1）。叫號機以 Android 包裝 App／kiosk 執行，**免點擊即可出聲**（ADR-027）。app 模式（UA 含 `QueueDisplayApp/`）完全不顯示「啟用聲音」提示；web 模式才顯示，且接受遙控器 OK／鍵盤任一鍵（Esc 除外）／點擊。音訊被擋時一律回報後台警示 |
 | 顧客（頁面在前景） | 頁面開著 | WS `ticket.called` / `queue.position` → 全螢幕提醒＋響鈴＋震動（Android） |
 | 顧客（頁面在背景／已關閉） | 已訂閱推播 | DO → `q-push` → consumer → Web Push（VAPID） |
 

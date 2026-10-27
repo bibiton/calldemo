@@ -72,6 +72,9 @@ CREATE TABLE devices (
   token_version  INTEGER NOT NULL DEFAULT 1,         -- 解除配對時 +1
   counter_id     TEXT,                               -- 面板可指定只顯示某些櫃台（NULL=全部）
   last_seen_at   INTEGER,                            -- 只在配對／重連時更新，不在心跳更新
+  client_kind    TEXT,                               -- android_app | fully | chrome_kiosk | browser（ADR-027）
+  audio_status   TEXT,                               -- ok | blocked；只在狀態改變時更新
+  audio_status_at INTEGER,
   status         TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','active','revoked')),
   created_at     INTEGER NOT NULL
 );

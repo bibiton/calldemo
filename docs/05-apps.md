@@ -66,15 +66,41 @@
 - 只有在素材缺檔／解碼失敗時才退回 `speechSynthesis` 唸基本句型（最後備援），並提示店長素材不完整。
 - 門店後台可設定：音量、唸幾次（1～3）、叮咚音效款式、語言（MVP 中文）、靜音時段、**趣味語音開關與頻率**，經 `settings.changed` 下發。
 
-### 啟用聲音（瀏覽器自動播放限制）
+### 免點擊自動出聲（ADR-027）
 
-- 首次配對或每次開機後，若 `AudioContext.state !== "running"`，全螢幕顯示覆蓋層
-  「**請點一下畫面啟用聲音**」（大字、閃爍邊框），點擊後解鎖並播放一次叮咚確認。
-- 解鎖前 QR 與號碼照常顯示；收到叫號事件時覆蓋層變紅提醒店員。
-- Kiosk 裝置免點擊設定（參考，**未逐一實機驗證**）：
-  - Android 電視盒 Chrome：啟動參數 `--autoplay-policy=no-user-gesture-required`（需可自訂啟動參數的 kiosk launcher）
-  - Fully Kiosk Browser：設定中的自動播放影片／允許音訊不需互動選項
-  - Chromium（Linux／Windows 迷你電腦）：`chromium --kiosk --autoplay-policy=no-user-gesture-required https://display.<domain>`
+叫號機是**受控裝置**，主方案是讓它不受瀏覽器 autoplay policy 限制，冷開機到出聲不需任何人觸碰：
+
+| 執行環境 | 免點擊方式 | 定位 |
+|---|---|---|
+| **自製 Android WebView 包裝 App**（`apps/display-android`） | `WebSettings.setMediaPlaybackRequiresUserGesture(false)` | **主方案** |
+| Fully Kiosk Browser（Android） | 設定中啟用自動播放音訊／影片；PLUS 授權 €8.90／US$10.99 每台一次性 | 替代 |
+| 迷你電腦（Linux／Windows）Chrome／Chromium kiosk | `--kiosk --autoplay-policy=no-user-gesture-required`，或 Chrome 企業政策 `AutoplayAllowed`／`AutoplayAllowlist` | 替代 |
+| 一般瀏覽器（電視內建、手機、筆電） | 無法免操作 → 保留「啟用聲音」提示（遙控器 OK／鍵盤任一鍵／點擊皆可） | 備援 |
+
+**模式判斷**：包裝 App 啟動時在 WebView 注入標記——userAgent 附加 `QueueDisplayApp/<x.y>`，並提供 JS bridge `QCSNative.info()`。
+display 前端據此分兩種模式：
+
+| 模式 | 判斷 | 「啟用聲音」提示 |
+|---|---|---|
+| **app 模式** | UA 含 `QueueDisplayApp/` 或 `window.QCSNative` 存在 | **完全不出現**（很多螢幕沒有觸控，也沒人會去點）。若仍偵測到音訊被擋，只回報後台警示，畫面不顯示任何要求操作的提示 |
+| **web 模式** | 其他 | 音訊被擋時顯示提示 |
+
+**web 模式的提示（支援無觸控）**：若 `AudioContext.state !== "running"` 或 `audio.play()` 被拒（`NotAllowedError`），
+全螢幕覆蓋層「**請按遙控器 OK 鍵、鍵盤任一鍵，或點一下畫面，以啟用聲音**」（大字、閃爍邊框）。
+同時監聽 `keydown`、`pointerup`、`mousedown`、`touchend`，任一觸發即 `audioContext.resume()` 並播一次叮咚確認。
+依 HTML 標準，`keydown` 屬於可觸發使用者啟用（user activation）的事件，**Esc 與瀏覽器保留的快捷鍵除外**
+（[HTML spec: activation triggering input event](https://html.spec.whatwg.org/multipage/interaction.html#activation-triggering-input-event)，2026-10-27 查證）；
+所以 Esc 不會解鎖（提示中的「任一鍵」不含 Esc），遙控器 OK（Enter／DPAD_CENTER）可用。各電視盒遙控器按鍵是否送出 trusted `keydown`：**未查證**，M8 實機驗證。
+解鎖前號碼與 QR 照常顯示，收到叫號時覆蓋層變紅。
+
+**全程可只用遙控器**：面板端沒有任何需要文字輸入的步驟——配對碼由面板**顯示**、店長在手機上輸入（見 06-auth §3）；
+App 首次啟動預設載入 production 網址，切換 staging 的選項以可聚焦按鈕（D-pad 上下左右＋OK）操作，不需要鍵盤。
+所有面板上的按鈕都有明顯的焦點框，`tabindex` 順序合理。
+
+**音訊被擋回報**：面板偵測到上述狀態（啟動時、每次叫號播放失敗時、狀態變化時）經既有 WS 送
+`{t:"status", audio:"blocked"|"ok", client:"android_app"|"fully"|"chrome_kiosk"|"browser", appVersion}`
+（只在狀態改變時送，成本可忽略）。DO 廣播給人員端／門店後台，並經 q-history 更新 D1 `devices.audio_status`，
+門店後台「裝置」頁與總後台「用量與成本 → 異常警示」顯示「**叫號機 X 無法出聲**」。
 
 ### 廣告輪播（ADR-016）
 

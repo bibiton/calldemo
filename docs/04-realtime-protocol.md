@@ -82,6 +82,9 @@ pair[1].serializeAttachment({ role, deviceId, staffId, ticketId, counterId }); /
 | `createTicket` | `serviceId, name?, phone?`（店員代客取號，QR 不可用時的備援） |
 | `revealPhone` | `ticketId`（按住顯示完整手機；寫稽核） |
 
+面板（display）→ 伺服器：`{ "t": "status", "audio": "ok" | "blocked", "client": "android_app" | "fully" | "chrome_kiosk" | "browser", "appVersion": "1.0.0" }`，
+只在狀態改變時送；DO 存入該連線的 attachment、廣播 `device.status` 給 staff，並經 q-history 更新 D1（ADR-027）。
+
 回應：`{ "t": "ack", "cmdId": "...", "ok": true, "seq": 1043, "result": {...} }` 或 `{ "t":"ack", "ok": false, "error": "TICKET_NOT_WAITING" }`。
 
 - `cmdId` 由客戶端產生（ULID）。DO 先查 `cmd_dedup`：已處理 → 直接回原結果。網路重送不會叫兩次號。
