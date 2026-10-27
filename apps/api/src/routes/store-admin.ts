@@ -12,6 +12,7 @@ import { licenseError, loadStore, refreshStore, toCtx, type StoreRecord } from "
 import { err, HHMM, isInt, isStr, type AppEnv, type C, type Deps } from "./common";
 import { registerDeviceRoutes } from "./pairing";
 import { registerAdRoutes } from "./ads";
+import { registerReportRoutes } from "./reports";
 
 const LOCK_AFTER = 5;
 const LOCK_MS = 15 * 60_000;
@@ -325,6 +326,7 @@ export function storeAdminRoutes(deps: Deps) {
 
   registerDeviceRoutes(r, { deps, change });
   registerAdRoutes(r, { deps, change });
+  registerReportRoutes(r, { deps, change });
 
   return r;
 }

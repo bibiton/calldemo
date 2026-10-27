@@ -746,6 +746,44 @@ export class StoreQueueDO extends DurableObject<Env> {
     this.broadcast([e]);
   }
 
+  /** 門店後台「今日」報表：直接由 DO 當日資料計算（D1 歷史要關店後才完整）。 */
+  async todayStats(sctx: StoreCtx) {
+    this.applyCtx(sctx);
+    const bd = businessDate(this.now(), this.tz);
+    const by = new Map<string, Record<string, number>>();
+    for (const r of this.sql.exec<{ service_id: string; status: string; n: number }>(
+      "SELECT service_id, status, count(*) AS n FROM tickets WHERE business_date=? GROUP BY service_id, status",
+      bd,
+    )) {
+      by.set(r.service_id, { ...(by.get(r.service_id) ?? {}), [r.status]: r.n });
+    }
+    const waits = new Map<string, number>();
+    for (const r of this.sql.exec<{ service_id: string; a: number }>(
+      "SELECT service_id, avg(called_at - created_at) AS a FROM tickets WHERE business_date=? AND called_at IS NOT NULL GROUP BY service_id",
+      bd,
+    )) {
+      waits.set(r.service_id, Math.round(r.a));
+    }
+    const services = (this.cfg?.services ?? []).map((s) => {
+      const m = by.get(s.id) ?? {};
+      const g = (k: string) => m[k] ?? 0;
+      return {
+        serviceId: s.id,
+        name: s.name,
+        prefix: s.prefix,
+        issued: Object.values(m).reduce((a, b) => a + b, 0),
+        waiting: g("waiting"),
+        called: g("called") + g("serving"),
+        done: g("done"),
+        skipped: g("skipped"),
+        noShow: g("no_show"),
+        cancelled: g("cancelled"),
+        avgWaitMs: waits.get(s.id) ?? null,
+      };
+    });
+    return { businessDate: bd, services };
+  }
+
   /** 廣告播放清單變更：面板收到 ads.manifest{version} 後重抓 manifest（05-apps §1）。 */
   async adsChanged(version: number): Promise<void> {
     const e = this.tx(() => this.emit("ads.manifest", { version }));

@@ -2,6 +2,7 @@ import { app } from "./app";
 import { handleHistoryBatch } from "./queue-consumer";
 import { handlePushBatch } from "./push-consumer";
 import { runRetention } from "./scheduled";
+import { runDailyStats } from "./reports";
 import type { Env, HistoryMessage, PushMessage } from "./env";
 
 export { StoreQueueDO } from "./do/store-queue";
@@ -14,6 +15,8 @@ export default {
     else await handleHistoryBatch(batch as MessageBatch<HistoryMessage>, env);
   },
   async scheduled(controller: ScheduledController, env: Env, _ctx: ExecutionContext): Promise<void> {
-    if (controller.cron === "30 19 * * *") await runRetention(env, Date.now());
+    const t = controller.scheduledTime || Date.now();
+    if (controller.cron === "30 19 * * *") await runRetention(env, t);
+    if (controller.cron === "5 * * * *") await runDailyStats(env, t);
   },
 } satisfies ExportedHandler<Env, HistoryMessage | PushMessage>;
