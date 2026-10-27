@@ -1,4 +1,5 @@
 import type { Env, HistoryMessage } from "./env";
+import { recomputeLateDays, usageStatements } from "./usage/rollup";
 
 /** q-history consumer：批次 INSERT OR IGNORE（冪等），刪除該批推播訂閱，寫稽核與裝置音訊狀態。 */
 export async function handleHistoryBatch(batch: MessageBatch<HistoryMessage>, env: Env): Promise<void> {
@@ -34,12 +35,14 @@ export async function writeHistory(env: Env, m: HistoryMessage): Promise<void> {
   for (const a of m.audits) stmts.push(aud.bind(a.id, a.at, a.actor_type, a.actor_id, a.store_id, a.action, a.target, a.detail));
   for (const d of m.devices ?? []) {
     if (!d.deviceId) continue;
+    // 佇列不保證順序：只套用比 D1 現有狀態新的（ADR-045）
     stmts.push(
-      env.DB.prepare("UPDATE devices SET audio_status=?, audio_status_at=?, client_kind=? WHERE id=? AND store_id=?").bind(
-        d.audio, d.at, d.client, d.deviceId, m.storeId,
-      ),
+      env.DB.prepare(
+        "UPDATE devices SET audio_status=?, audio_status_at=?, client_kind=COALESCE(?, client_kind) WHERE id=? AND store_id=? AND (audio_status_at IS NULL OR audio_status_at <= ?)",
+      ).bind(d.audio, d.at, d.client ?? null, d.deviceId, m.storeId, d.at),
     );
   }
-  // usage 小時桶：0002_usage.sql（M4）建立後寫入 usage_hourly；M1 只接收不落地
+  stmts.push(...usageStatements(env, m.storeId, m.usage ?? []));
   if (stmts.length) await env.DB.batch(stmts);
+  await recomputeLateDays(env, m.storeId, m.usage ?? [], Date.now());
 }

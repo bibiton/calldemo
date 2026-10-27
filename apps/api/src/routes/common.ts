@@ -3,8 +3,9 @@ import type { Env } from "../env";
 import type { StoreRecord } from "../lib/store-ctx";
 import type { StoreQueueDO } from "../do/store-queue";
 import type { JwtClaims } from "../lib/jwt";
+import type { PlatformAdmin } from "../lib/access";
 
-export type AppEnv = { Bindings: Env; Variables: { admin: JwtClaims; rec: StoreRecord } };
+export type AppEnv = { Bindings: Env; Variables: { admin: JwtClaims; rec: StoreRecord; platform: PlatformAdmin; sid: string } };
 export type C = Context<AppEnv>;
 
 export const err = (c: C, status: number, code: string, extra: Record<string, unknown> = {}) => c.json({ code, ...extra }, status as any);

@@ -9,6 +9,17 @@ export interface Env {
   Q_PUSH: Queue<PushMessage>;
   ENV: "local" | "staging" | "production";
   DEV_BYPASS_ACCESS?: string;
+  /** Cloudflare Access（總後台，08 §7）：Application AUD tag 與 team domain（xxx.cloudflareaccess.com） */
+  ACCESS_AUD?: string;
+  ACCESS_TEAM_DOMAIN?: string;
+  /** 允許進入總後台的 email（逗號分隔）。Access policy 用同一份名單；Worker 再檢查一次 */
+  ACCESS_ALLOWED_EMAILS?: string;
+  /** Workers Analytics Engine（每 API 請求 1 個 data point，12 §2）；本機不綁定 → 不寫 */
+  USAGE?: AnalyticsEngineDataset;
+  /** Analytics Engine SQL API（每日 Cron 匯入 usage_hourly）：帳號 id、dataset 名、唯讀 token（Account Analytics Read） */
+  CF_ACCOUNT_ID?: string;
+  AE_DATASET?: string;
+  AE_API_TOKEN?: string;
   APP_ORIGINS: string;
   MEDIA_BASE: string;
   CUSTOMER_BASE_URL: string;
@@ -40,8 +51,8 @@ export interface HistoryMessage {
   storeId: string;
   rows: HistoryRow[];
   audits: AuditRow[];
-  usage: unknown[];
-  devices?: { deviceId: string; audio: string; client: string; at: number }[];
+  usage: UsageBucket[];
+  devices?: { deviceId: string | null; audio: string; client: string | null; at: number }[];
 }
 
 export interface HistoryRow {
@@ -74,4 +85,18 @@ export interface AuditRow {
   action: string;
   target: string | null;
   detail: string | null;
+}
+
+/** DO 用量小時桶（12 §2）：隨既有 state 列落地、隨 q-history 送出。 */
+export interface UsageBucket {
+  h: string; // UTC 小時 "2026-10-27T05"
+  wsConn: number;
+  wsIn: number;
+  rpc: number;
+  alarms: number;
+  tickets: number;
+  calls: number;
+  events: number;
+  wakes: number;
+  rowsW: number;
 }

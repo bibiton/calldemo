@@ -6,12 +6,16 @@ import { encodeHeader } from "./do/store-queue";
 import { signJwt, verifyJwt } from "./lib/jwt";
 import { verifySecret } from "./lib/password";
 import { bearer, protocolToken, verifyDeviceToken, verifyStaffToken, verifyTicketToken } from "./lib/auth";
-import { licenseError, loadStore, refreshStore, storeIdByCode, toCtx, type StoreRecord } from "./lib/store-ctx";
+import { licenseError, loadStore, storeIdByCode, toCtx, type StoreRecord } from "./lib/store-ctx";
 import { verifyAdminAccess } from "./lib/admin-auth";
 import { err, type AppEnv, type C } from "./routes/common";
 import { storeAdminRoutes } from "./routes/store-admin";
 import { pairingRoutes } from "./routes/pairing";
 import { serveLocalMedia } from "./routes/ads";
+import { adminRoutes } from "./routes/admin";
+import { defaultJwksFetcher, platformAdmin, type JwksFetcher } from "./lib/access";
+import { routePath } from "hono/route";
+import { roleOf, writeApiPoint, type AeFetch } from "./usage/ae";
 
 export const VERSION = "0.1.0";
 const SESSION_TTL_S = 10 * 60;
@@ -24,6 +28,10 @@ const LOCK_MS = 15 * 60_000;
 
 export interface AppDeps {
   now?: () => number;
+  /** Access 公鑰（JWKS）取得方式；測試注入 */
+  accessFetch?: JwksFetcher;
+  /** Analytics Engine SQL API；測試注入 */
+  aeFetch?: AeFetch;
 }
 
 export function createApp(deps: AppDeps = {}) {
@@ -35,6 +43,22 @@ export function createApp(deps: AppDeps = {}) {
   app.use("*", async (c, next) => {
     if (c.env.ENV === "production" && c.env.DEV_BYPASS_ACCESS) return c.json({ code: "MISCONFIGURED" }, 500);
     await next();
+  });
+
+  // 用量計量（12 §2、ADR-019）：每個請求結束時寫 1 個 Analytics Engine data point；不影響回應、不寫 D1
+  app.use("*", async (c, next) => {
+    const t0 = Date.now();
+    await next();
+    if (!c.env.USAGE) return;
+    const route = routePath(c, -1) || "unmatched";
+    writeApiPoint(c.env, {
+      storeId: c.get("sid") ?? null,
+      route: route === "/*" || route === "*" ? "unmatched" : route,
+      method: c.req.method,
+      status: c.res.status,
+      role: roleOf(c.req.path, new URL(c.req.url).searchParams),
+      wallMs: Date.now() - t0,
+    });
   });
 
   app.use(
@@ -56,6 +80,7 @@ export function createApp(deps: AppDeps = {}) {
     rec.store.features?.push !== false && c.env.VAPID_PUBLIC_KEY ? { publicKey: c.env.VAPID_PUBLIC_KEY } : null;
 
   async function storeOr(c: C, storeId: string): Promise<StoreRecord | Response> {
+    c.set("sid", storeId);
     const rec = await loadStore(c.env, storeId, now());
     if (!rec) return err(c, 404, "STORE_NOT_FOUND");
     const le = licenseError(rec, now());
@@ -121,6 +146,7 @@ export function createApp(deps: AppDeps = {}) {
   app.get("/api/tickets/me", async (c) => {
     const t = await verifyTicketToken(c.env, bearer(c.req.header("authorization")), now());
     if (!t) return err(c, 401, "TOKEN_INVALID");
+    c.set("sid", t.store_id);
     const rec = await loadStore(c.env, t.store_id, now());
     if (!rec) return err(c, 404, "STORE_NOT_FOUND");
     const ticket = await stub(c, t.store_id).ticketView(await toCtx(c.env, rec, false), t.sub);
@@ -329,26 +355,14 @@ export function createApp(deps: AppDeps = {}) {
   app.route("/api/store", storeAdminRoutes({ now, storeOr, stub }));
   app.route("/api", pairingRoutes({ now, storeOr, stub }));
 
-  // ---------- 平台管理（Cloudflare Access；M1 僅本機繞過，Access JWT 驗證在 M4 4.1）----------
+  // ---------- 平台管理（Cloudflare Access＋Worker 驗 JWT，06 §1、08 §7）----------
   app.use("/api/admin/*", async (c, next) => {
-    if (c.env.ENV === "local" && c.env.DEV_BYPASS_ACCESS === "1") return next();
-    return err(c, 401, "ACCESS_REQUIRED");
+    const who = await platformAdmin(c.env, c.req.raw.headers, now(), deps.accessFetch ?? defaultJwksFetcher);
+    if (!who) return err(c, 401, "ACCESS_REQUIRED");
+    c.set("platform", who);
+    return next();
   });
-
-  async function setStatus(c: C, status: "active" | "suspended") {
-    const id = c.req.param("id")!;
-    const r = await c.env.DB.prepare("UPDATE stores SET status=?, updated_at=MAX(updated_at+1, ?) WHERE id=?").bind(status, now(), id).run();
-    if (!r.meta.changes) return err(c, 404, "STORE_NOT_FOUND");
-    const rec = (await refreshStore(c.env, id))!;
-    await c.env.DB.prepare("INSERT INTO audit_logs(id,at,actor_type,actor_id,store_id,action) VALUES(?,?,?,?,?,?)")
-      .bind(ulid(now()), now(), "platform_admin", "dev", id, status === "active" ? "store.resume" : "store.suspend")
-      .run();
-    if (status === "suspended") await stub(c, id).suspend("suspended", rec.license);
-    else await stub(c, id).resume(await toCtx(c.env, rec, false));
-    return c.json({ ok: true, status });
-  }
-  app.post("/api/admin/stores/:id/suspend", (c) => setStatus(c, "suspended"));
-  app.post("/api/admin/stores/:id/resume", (c) => setStatus(c, "active"));
+  app.route("/api/admin", adminRoutes({ now, storeOr, stub, aeFetch: deps.aeFetch ?? ((r) => fetch(r)) }));
 
   app.notFound((c) => err(c, 404, "NOT_FOUND"));
   app.onError((e, c) => {

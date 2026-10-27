@@ -4,6 +4,7 @@
  */
 import type { Env, PushMessage } from "./env";
 import { buildPushRequest, importVapid, type VapidKeys } from "./lib/webpush";
+import { pushStatements } from "./usage/rollup";
 
 export type { PushMessage };
 
@@ -59,6 +60,15 @@ export async function handlePushBatch(batch: MessageBatch<PushMessage>, env: Env
     for (const r of rows.results) subs.set(r.ticket_id, r);
   }
 
+  // 每批依店計數（ADR-044）：最終結果才計（成功＝sent；放棄／訂閱失效＝sent＋failed；重試中不計）
+  const counts = new Map<string, { sent: number; failed: number }>();
+  const tally = (storeId: string, failed: boolean) => {
+    const c = counts.get(storeId) ?? { sent: 0, failed: 0 };
+    c.sent++;
+    if (failed) c.failed++;
+    counts.set(storeId, c);
+  };
+
   await Promise.all(
     batch.messages.map(async (msg) => {
       const m = msg.body;
@@ -72,19 +82,33 @@ export async function handlePushBatch(batch: MessageBatch<PushMessage>, env: Env
         if (e instanceof Error && /p256dh|auth secret|payload/.test(e.message)) {
           console.error("push: bad subscription, dropping", m.ticketId, e.message);
           await env.DB.prepare("DELETE FROM push_subscriptions WHERE ticket_id=?").bind(m.ticketId).run();
+          tally(m.storeId, true);
           return msg.ack();
         }
         console.warn("push: network error", m.ticketId, String(e));
       }
-      if (res && res.status >= 200 && res.status < 300) return msg.ack();
+      if (res && res.status >= 200 && res.status < 300) {
+        tally(m.storeId, false);
+        return msg.ack();
+      }
       if (res && (res.status === 404 || res.status === 410)) {
         await env.DB.prepare("DELETE FROM push_subscriptions WHERE ticket_id=?").bind(m.ticketId).run();
+        tally(m.storeId, true);
         return msg.ack();
       }
       const retriable = !res || res.status === 429 || res.status >= 500;
       if (retriable && msg.attempts <= MAX_RETRIES) return msg.retry({ delaySeconds: retryDelay(res, msg.attempts) });
       console.error("push: giving up", m.ticketId, res?.status ?? "network", "attempts", msg.attempts);
+      tally(m.storeId, true);
       msg.ack();
     }),
   );
+  const stmts = pushStatements(env, counts, now());
+  if (stmts.length) {
+    try {
+      await env.DB.batch(stmts);
+    } catch (e) {
+      console.error("push usage write failed", String(e)); // 計量失敗不影響推播
+    }
+  }
 }

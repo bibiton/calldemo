@@ -22,9 +22,10 @@ import {
   type StoreInfo,
   type TicketStatus,
 } from "@qcs/shared";
-import type { AuditRow, Env, HistoryMessage, HistoryRow, PushMessage } from "../env";
+import type { AuditRow, Env, HistoryMessage, HistoryRow, PushMessage, UsageBucket } from "../env";
 import { DO_MIGRATIONS } from "./schema";
 import { notifyAheadOf, pushKindFor } from "./push-triggers";
+import { isOffHours } from "../usage/hours";
 
 export interface License {
   status: "active" | "suspended";
@@ -46,6 +47,7 @@ export interface Attachment {
   staffId?: string;
   deviceId?: string;
   audio?: string;
+  client?: string;
   ahead?: number;
   status?: string;
 }
@@ -99,15 +101,8 @@ interface Evt {
   data: any;
 }
 
-interface Usage {
-  h: string;
-  wsConn: number;
-  wsIn: number;
-  tickets: number;
-  calls: number;
-  events: number;
-  wakes: number;
-}
+type Usage = UsageBucket;
+type DeviceStatus = NonNullable<HistoryMessage["devices"]>[number];
 interface State {
   seq: number;
   /** ord／call_seq 的單調計數（ADR-042）；跟 seq 同一列，每次交易本來就要寫 */
@@ -115,6 +110,9 @@ interface State {
   u: Usage;
   uh: Usage[];
 }
+
+/** 未送出的小時桶上限（約 8 天）：一直沒有關店 alarm 的門店不會讓 state 列無限長大 */
+const MAX_PENDING_BUCKETS = 200;
 
 interface CmdOutcome {
   ok: boolean;
@@ -141,7 +139,7 @@ export function decodeHeader<T>(v: string | null): T | null {
   }
 }
 
-const emptyUsage = (h: string): Usage => ({ h, wsConn: 0, wsIn: 0, tickets: 0, calls: 0, events: 0, wakes: 0 });
+const emptyUsage = (h: string): Usage => ({ h, wsConn: 0, wsIn: 0, rpc: 0, alarms: 0, tickets: 0, calls: 0, events: 0, wakes: 0, rowsW: 0 });
 
 export class StoreQueueDO extends DurableObject<Env> {
   private sql: SqlStorage;
@@ -154,9 +152,14 @@ export class StoreQueueDO extends DurableObject<Env> {
   private cfgV = 0;
   private qr: StoreCtx["qr"] | null = null;
 
+  /** 測試用：本機沒有 Analytics Engine binding 時，夜間喚醒點寫到這裡（模組層級，跨 DO 實例保留）。 */
+  static aeSink: { writeDataPoint(p: AnalyticsEngineDataPoint): void } | null = null;
+
   /** 測試／觀測用（記憶體，不落地）。 */
   debug = { messagesHandled: 0, instanceId: crypto.randomUUID() };
   captureHistory = false;
+  /** 用量計量開關（T18 比較開／關時的 rows written；正式環境永遠開啟） */
+  private metering = true;
   captured: HistoryMessage[] = [];
   capturePush = false;
   capturedPush: PushMessage[] = [];
@@ -169,6 +172,7 @@ export class StoreQueueDO extends DurableObject<Env> {
       this.migrate();
       this.load();
       this.usage("wakes");
+      this.nightWake();
     });
   }
 
@@ -176,6 +180,10 @@ export class StoreQueueDO extends DurableObject<Env> {
 
   setClock(fn: (() => number) | null): void {
     this.clock = fn;
+  }
+
+  setMetering(on: boolean): void {
+    this.metering = on;
   }
 
   private now(): number {
@@ -228,13 +236,29 @@ export class StoreQueueDO extends DurableObject<Env> {
 
   /** 用量計數只在記憶體累加，隨下一次本來就要寫的 state 列落地（ADR-019）。 */
   private usage(field: keyof Omit<Usage, "h">, n = 1): void {
-    if (!this.state) return;
+    if (!this.state || !this.metering) return;
     const h = this.hourKey();
     if (this.state.u.h !== h) {
       this.state.uh.push(this.state.u);
+      if (this.state.uh.length > MAX_PENDING_BUCKETS) this.state.uh.splice(0, this.state.uh.length - MAX_PENDING_BUCKETS);
       this.state.u = emptyUsage(h);
     }
-    this.state.u[field] += n;
+    this.state.u[field] = (this.state.u[field] ?? 0) + n; // 舊版 state 沒有新欄位
+  }
+
+  /**
+   * 非營業時間被喚醒：直接寫 1 個 Analytics Engine 點（ADR-044）。記憶體計數只有之後有寫入才會落地，
+   * 而「夜裡被喚醒卻什麼都沒做」正是 hibernation 失效的樣子 → 這種喚醒要另外記。白天不寫（量大且正常）。
+   * writeDataPoint 不等待、不是對外 fetch，不影響 hibernation、不增加 SQLite 寫入。
+   */
+  private nightWake(): void {
+    if (!this.metering || !this.cfg) return;
+    if (!isOffHours(this.now(), this.tz, this.cfg.businessHours ?? [])) return;
+    try {
+      (this.env.USAGE ?? StoreQueueDO.aeSink)?.writeDataPoint({ indexes: [this.cfg.id], blobs: ["wake", "DO", "-", "do"], doubles: [1, 0] });
+    } catch {
+      /* 計量失敗不影響服務 */
+    }
   }
 
   private applyCtx(ctx: StoreCtx): void {
@@ -278,6 +302,7 @@ export class StoreQueueDO extends DurableObject<Env> {
     try {
       return this.ctx.storage.transactionSync(() => {
         const r = fn();
+        this.usage("rowsW"); // state 列本身（估算值，12 §2）
         this.metaSet("state", JSON.stringify(this.state));
         return r;
       });
@@ -298,6 +323,7 @@ export class StoreQueueDO extends DurableObject<Env> {
     const payload = { ...data, waiting: this.waitingCounts() };
     this.sql.exec("INSERT INTO events(seq,at,type,payload) VALUES(?,?,?,?)", seq, at, type, JSON.stringify(payload));
     this.usage("events");
+    this.usage("rowsW", 2); // 事件列＋造成事件的號碼列
     return { seq, at, type, data: payload };
   }
 
@@ -538,11 +564,16 @@ export class StoreQueueDO extends DurableObject<Env> {
     } else if (msg?.t === "cmd") {
       await this.handleCmd(ws, att, msg);
     } else if (msg?.t === "status" && att.role === "display") {
-      this.handleStatus(ws, att, msg);
+      await this.handleStatus(ws, att, msg);
     }
   }
 
   async webSocketClose(ws: WebSocket, code: number): Promise<void> {
+    // 「無法出聲」的面板斷線：回報 offline，警示不殘留（重連後面板會再回報目前狀態）
+    const att = ws.deserializeAttachment() as Attachment | null;
+    if (att?.role === "display" && att.audio === "blocked") {
+      await this.deviceStatus({ deviceId: att.deviceId ?? null, audio: "offline", client: att.client ?? null, at: this.now() });
+    }
     try {
       ws.close(code === 1005 || code === 1006 ? 1000 : code);
     } catch {
@@ -554,14 +585,41 @@ export class StoreQueueDO extends DurableObject<Env> {
     /* runtime 會接著呼叫 webSocketClose */
   }
 
-  private handleStatus(ws: WebSocket, att: Attachment, msg: any): void {
+  private async handleStatus(ws: WebSocket, att: Attachment, msg: any): Promise<void> {
     const audio = msg.audio === "ok" ? "ok" : msg.audio === "blocked" ? "blocked" : null;
     if (!audio || att.audio === audio) return;
     att.audio = audio;
+    att.client = String(msg.client ?? "browser").slice(0, 20);
     ws.serializeAttachment(att);
-    const data = { deviceId: att.deviceId ?? null, audio, client: String(msg.client ?? "browser").slice(0, 20), at: this.now() };
-    this.sql.exec("INSERT INTO audit_buffer(id,at,kind,json) VALUES(?,?,?,?)", ulid(this.now()), this.now(), "device", JSON.stringify(data));
+    await this.deviceStatus({ deviceId: att.deviceId ?? null, audio, client: att.client, at: this.now() });
+  }
+
+  /**
+   * 面板音訊狀態改變：通知人員端／門店後台，並**立即**經 q-history 寫 D1（總後台「無法出聲」警示要在幾分鐘內出現，
+   * 不能等 25 筆歷史批次，ADR-045）。只在狀態改變時發生，量極小；佇列失敗時退回批次緩衝。
+   */
+  private async deviceStatus(data: DeviceStatus): Promise<void> {
     for (const s of this.ctx.getWebSockets("role:staff")) this.sendJson(s, { t: "evt", at: this.now(), type: "device.status", data });
+    const msg: HistoryMessage = { kind: "history", storeId: this.cfg?.id ?? "", rows: [], audits: [], usage: [], devices: [data] };
+    if (this.captureHistory) {
+      this.captured.push(msg);
+      return;
+    }
+    try {
+      await this.env.Q_HISTORY.send(msg);
+    } catch (e) {
+      console.error("device status enqueue failed; buffering", String(e));
+      this.sql.exec("INSERT INTO audit_buffer(id,at,kind,json) VALUES(?,?,?,?)", ulid(this.now()), this.now(), "device", JSON.stringify(data));
+    }
+  }
+
+  /** 總後台門店詳情：目前連線中的面板與音訊狀態（只在管理員開詳情時呼叫）。 */
+  async liveDevices(): Promise<{ deviceId: string | null; audio: string | null; client: string | null }[]> {
+    this.usage("rpc");
+    return this.ctx.getWebSockets("role:display").map((ws) => {
+      const a = ws.deserializeAttachment() as Attachment | null;
+      return { deviceId: a?.deviceId ?? null, audio: a?.audio ?? null, client: a?.client ?? null };
+    });
   }
 
   // ---------- 取號（Worker RPC）----------
@@ -610,6 +668,7 @@ export class StoreQueueDO extends DurableObject<Env> {
   }
 
   async takeTicket(sctx: StoreCtx, input: TakeInput): Promise<TakeResult> {
+    this.usage("rpc");
     this.applyCtx(sctx);
     const lic = this.licenseError();
     if (lic) return { ok: false, status: 403, code: lic === "expired" ? "STORE_EXPIRED" : "STORE_SUSPENDED" };
@@ -655,6 +714,7 @@ export class StoreQueueDO extends DurableObject<Env> {
   }
 
   async cancelTicket(sctx: StoreCtx, ticketId: string): Promise<{ ok: boolean; code?: string }> {
+    this.usage("rpc");
     this.applyCtx(sctx);
     const out = this.tx(() => {
       const r = this.ticket(ticketId);
@@ -670,11 +730,13 @@ export class StoreQueueDO extends DurableObject<Env> {
   }
 
   async summary(sctx: StoreCtx): Promise<{ waiting: Record<string, number> }> {
+    this.usage("rpc");
     this.applyCtx(sctx);
     return { waiting: this.waitingCounts() };
   }
 
   async ticketView(sctx: StoreCtx, ticketId: string) {
+    this.usage("rpc");
     this.applyCtx(sctx);
     const r = this.ticket(ticketId);
     return r ? this.mine(r) : null;
@@ -684,6 +746,7 @@ export class StoreQueueDO extends DurableObject<Env> {
 
   /** 顧客訂閱後由 Worker 呼叫：標記此號碼要推播。前面人數已在門檻內時視為已提醒（顧客正看著號碼頁）。 */
   async enablePush(sctx: StoreCtx, ticketId: string): Promise<{ ok: boolean; code?: string }> {
+    this.usage("rpc");
     this.applyCtx(sctx);
     const r = this.ticket(ticketId);
     if (!r) return { ok: false, code: "TICKET_NOT_FOUND" };
@@ -738,6 +801,7 @@ export class StoreQueueDO extends DurableObject<Env> {
   // ---------- 停用（06 §2）----------
 
   async suspend(reason: "suspended" | "expired", license?: License): Promise<void> {
+    this.usage("rpc");
     if (license) {
       this.metaSet("license_json", JSON.stringify(license));
       this.licenseJson = JSON.stringify(license);
@@ -759,11 +823,13 @@ export class StoreQueueDO extends DurableObject<Env> {
   }
 
   async resume(sctx: StoreCtx): Promise<void> {
+    this.usage("rpc");
     this.applyCtx(sctx);
   }
 
   /** 門店後台改了設定：套用並廣播 settings.changed（面板重連取新 hello，人員端重抓門店資料）。 */
   async configChanged(sctx: StoreCtx): Promise<void> {
+    this.usage("rpc");
     this.applyCtx(sctx);
     const e = this.tx(() => this.emit("settings.changed", { version: this.cfgV }));
     this.broadcast([e]);
@@ -771,6 +837,7 @@ export class StoreQueueDO extends DurableObject<Env> {
 
   /** 門店後台「今日」報表：直接由 DO 當日資料計算（D1 歷史要關店後才完整）。 */
   async todayStats(sctx: StoreCtx) {
+    this.usage("rpc");
     this.applyCtx(sctx);
     const bd = businessDate(this.now(), this.tz);
     const by = new Map<string, Record<string, number>>();
@@ -809,12 +876,14 @@ export class StoreQueueDO extends DurableObject<Env> {
 
   /** 廣告播放清單變更：面板收到 ads.manifest{version} 後重抓 manifest（05-apps §1）。 */
   async adsChanged(version: number): Promise<void> {
+    this.usage("rpc");
     const e = this.tx(() => this.emit("ads.manifest", { version }));
     this.broadcast([e]);
   }
 
   /** 解除裝置配對／停用人員：立即關閉該身分的連線（4001），之後重連會被 Worker 以 401 拒絕。 */
   async disconnect(match: { deviceId?: string; staffId?: string }): Promise<number> {
+    this.usage("rpc");
     let n = 0;
     for (const ws of this.ctx.getWebSockets()) {
       const att = ws.deserializeAttachment() as Attachment | null;
@@ -1037,6 +1106,7 @@ export class StoreQueueDO extends DurableObject<Env> {
   }
 
   async alarm(): Promise<void> {
+    this.usage("alarms");
     const now = this.now();
     const bd = this.metaGet("alarm_bd") ?? businessDate(now - DAY_MS, this.tz);
     const e = this.tx(() => {
@@ -1099,7 +1169,7 @@ export class StoreQueueDO extends DurableObject<Env> {
 
   private async flushHistory(all: boolean, _bd?: string): Promise<void> {
     const storeId = this.cfg?.id ?? "";
-    if (all) {
+    if (all && this.metering) {
       this.usage("events", 0); // 讓小時桶依目前時間輪替
       this.state.uh.push(this.state.u);
       this.state.u = emptyUsage(this.hourKey());
@@ -1109,7 +1179,7 @@ export class StoreQueueDO extends DurableObject<Env> {
         .exec<Row>(`SELECT * FROM tickets WHERE flushed=0 AND status IN (${inList(TERMINAL)}) ORDER BY ended_at LIMIT ${HISTORY_BATCH}`)
         .toArray();
       const audRows = this.sql.exec<{ id: string; at: number; kind: string; json: string }>("SELECT * FROM audit_buffer ORDER BY at LIMIT 50").toArray();
-      const usage = this.state.uh;
+      const usage = this.metering ? this.state.uh : [];
       if (!rows.length && !audRows.length && !usage.length) return;
       if (!all && rows.length < HISTORY_BATCH) return;
       const audits: AuditRow[] = [];
