@@ -2,3 +2,6 @@
 JWT_SECRET=change-me
 PHONE_PEPPER=change-me
 QR_ROOT_SECRET=change-me
+VAPID_PUBLIC_KEY=
+VAPID_PRIVATE_KEY=
+VAPID_SUBJECT=mailto:ops@example.com

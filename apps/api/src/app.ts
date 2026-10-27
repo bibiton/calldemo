@@ -1,6 +1,6 @@
 import { Hono, type Context } from "hono";
 import { cors } from "hono/cors";
-import { normalizePhone, ulid, validateName, verifyQrToken, deriveStoreKey } from "@qcs/shared";
+import { b64urlDecode, normalizePhone, ulid, validateName, verifyQrToken, deriveStoreKey } from "@qcs/shared";
 import type { Env } from "./env";
 import { encodeHeader } from "./do/store-queue";
 import { signJwt, verifyJwt } from "./lib/jwt";
@@ -47,6 +47,10 @@ export function createApp(deps: AppDeps = {}) {
 
   app.get("/health", (c) => c.json({ ok: true, version: VERSION, env: c.env.ENV }));
 
+  /** 門店開啟推播且已設定 VAPID 才給公鑰；前端拿不到就不請求通知權限（07 §2）。 */
+  const pushInfo = (c: C, rec: StoreRecord) =>
+    rec.store.features?.push !== false && c.env.VAPID_PUBLIC_KEY ? { publicKey: c.env.VAPID_PUBLIC_KEY } : null;
+
   async function storeOr(c: C, storeId: string): Promise<StoreRecord | Response> {
     const rec = await loadStore(c.env, storeId, now());
     if (!rec) return err(c, 404, "STORE_NOT_FOUND");
@@ -76,6 +80,7 @@ export function createApp(deps: AppDeps = {}) {
       expiresAt: exp * 1000,
       store: { id, code: rec.store.code, name: rec.store.name, logoUrl: rec.store.logoUrl },
       services: rec.store.services.map((s) => ({ id: s.id, name: s.name, prefix: s.prefix, waiting: waiting[s.id] ?? 0 })),
+      push: pushInfo(c, rec),
     });
   });
 
@@ -116,7 +121,7 @@ export function createApp(deps: AppDeps = {}) {
     if (!rec) return err(c, 404, "STORE_NOT_FOUND");
     const ticket = await stub(c, t.store_id).ticketView(await toCtx(c.env, rec, false), t.sub);
     if (!ticket) return err(c, 404, "TICKET_NOT_FOUND");
-    return c.json({ ticket, store: { id: rec.store.id, code: rec.store.code, name: rec.store.name, logoUrl: rec.store.logoUrl } });
+    return c.json({ ticket, store: { id: rec.store.id, code: rec.store.code, name: rec.store.name, logoUrl: rec.store.logoUrl }, push: pushInfo(c, rec) });
   });
 
   app.post("/api/tickets/:id/cancel", async (c) => {
@@ -127,6 +132,26 @@ export function createApp(deps: AppDeps = {}) {
     if (rec instanceof Response) return rec;
     const r = await stub(c, t.store_id).cancelTicket(await toCtx(c.env, rec, false), t.sub);
     return r.ok ? c.json({ ok: true }) : err(c, 409, r.code ?? "BAD_STATE");
+  });
+
+  // 推播訂閱（07 §2、§6）：一號一筆，號碼結束由 q-history 刪除、孤兒 24 小時由 Cron 清
+  app.post("/api/tickets/:id/push", async (c) => {
+    const t = await verifyTicketToken(c.env, bearer(c.req.header("authorization")), now());
+    if (!t) return err(c, 401, "TOKEN_INVALID");
+    if (t.sub !== c.req.param("id")) return err(c, 403, "FORBIDDEN");
+    const body = await c.req.json().catch(() => null);
+    const sub = parseSubscription(body, c.env.ENV === "local");
+    if (!sub) return err(c, 422, "SUBSCRIPTION_INVALID");
+    const rec = await storeOr(c, t.store_id);
+    if (rec instanceof Response) return rec;
+    if (!pushInfo(c, rec)) return err(c, 403, "PUSH_DISABLED");
+    const r = await stub(c, t.store_id).enablePush(await toCtx(c.env, rec, false), t.sub);
+    if (!r.ok) return err(c, 409, r.code ?? "BAD_STATE");
+    await c.env.DB.prepare(
+      `INSERT INTO push_subscriptions(ticket_id,store_id,endpoint,p256dh,auth,created_at) VALUES(?,?,?,?,?,?)
+       ON CONFLICT(ticket_id) DO UPDATE SET endpoint=excluded.endpoint, p256dh=excluded.p256dh, auth=excluded.auth`,
+    ).bind(t.sub, t.store_id, sub.endpoint, sub.p256dh, sub.auth, now()).run();
+    return c.json({ ok: true });
   });
 
   // ---------- 人員（ADR-004：裝置綁店＋PIN）----------
@@ -282,3 +307,28 @@ export function createApp(deps: AppDeps = {}) {
 }
 
 export const app = createApp();
+
+/** PushSubscription.toJSON() 格式驗證。endpoint 只收 https（本機測試允許 http://127.0.0.1／localhost 假端點）。 */
+export function parseSubscription(body: any, allowLocalHttp: boolean): { endpoint: string; p256dh: string; auth: string } | null {
+  const endpoint = typeof body?.endpoint === "string" ? body.endpoint : "";
+  const p256dh = typeof body?.keys?.p256dh === "string" ? body.keys.p256dh : "";
+  const auth = typeof body?.keys?.auth === "string" ? body.keys.auth : "";
+  if (!endpoint || endpoint.length > 1024) return null;
+  let u: URL;
+  try {
+    u = new URL(endpoint);
+  } catch {
+    return null;
+  }
+  const localHttp = allowLocalHttp && u.protocol === "http:" && (u.hostname === "127.0.0.1" || u.hostname === "localhost");
+  if (u.protocol !== "https:" && !localHttp) return null;
+  const b64 = /^[A-Za-z0-9_-]+={0,2}$/;
+  if (!b64.test(p256dh) || !b64.test(auth)) return null;
+  try {
+    if (b64urlDecode(p256dh.replace(/=+$/, "")).length !== 65 || b64urlDecode(auth.replace(/=+$/, "")).length !== 16) return null;
+  } catch {
+    return null;
+  }
+  return { endpoint, p256dh: p256dh.replace(/=+$/, ""), auth: auth.replace(/=+$/, "") };
+}
+

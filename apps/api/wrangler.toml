@@ -48,6 +48,11 @@ queue = "qcs-history-local"
 max_batch_size = 10
 max_batch_timeout = 1
 max_retries = 5
+[[env.local.queues.consumers]]
+queue = "qcs-push-local"
+max_batch_size = 25
+max_batch_timeout = 1
+max_retries = 3
 
 [env.local.triggers]
 crons = ["5 * * * *", "30 19 * * *"]

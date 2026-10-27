@@ -22,8 +22,9 @@ import {
   type StoreInfo,
   type TicketStatus,
 } from "@qcs/shared";
-import type { AuditRow, Env, HistoryMessage, HistoryRow } from "../env";
+import type { AuditRow, Env, HistoryMessage, HistoryRow, PushMessage } from "../env";
 import { DO_MIGRATIONS } from "./schema";
+import { notifyAheadOf, pushKindFor } from "./push-triggers";
 
 export interface License {
   status: "active" | "suspended";
@@ -74,6 +75,8 @@ interface Row {
   staff_id: string | null;
   recall_count: number;
   transfer_count: number;
+  push_enabled: number;
+  push_soon_sent: number;
   source: "qr" | "staff";
   sort_key: number;
   created_at: number;
@@ -145,6 +148,8 @@ export class StoreQueueDO extends DurableObject<Env> {
   debug = { messagesHandled: 0, instanceId: crypto.randomUUID() };
   captureHistory = false;
   captured: HistoryMessage[] = [];
+  capturePush = false;
+  capturedPush: PushMessage[] = [];
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
@@ -618,6 +623,7 @@ export class StoreQueueDO extends DurableObject<Env> {
     });
     if (!out) return { ok: false, code: "BAD_STATE" };
     this.broadcast([out]);
+    await this.pushFor([out]);
     await this.maybeFlush();
     return { ok: true };
   }
@@ -631,6 +637,53 @@ export class StoreQueueDO extends DurableObject<Env> {
     this.applyCtx(sctx);
     const r = this.ticket(ticketId);
     return r ? this.mine(r) : null;
+  }
+
+  // ---------- Web Push（07 §1；只在顧客沒開著 WS 時才送，ADR-010 經 q-push）----------
+
+  /** 顧客訂閱後由 Worker 呼叫：標記此號碼要推播。前面人數已在門檻內時視為已提醒（顧客正看著號碼頁）。 */
+  async enablePush(sctx: StoreCtx, ticketId: string): Promise<{ ok: boolean; code?: string }> {
+    this.applyCtx(sctx);
+    const r = this.ticket(ticketId);
+    if (!r) return { ok: false, code: "TICKET_NOT_FOUND" };
+    if (!ACTIVE_STATUSES.includes(r.status) && r.status !== "skipped") return { ok: false, code: "TICKET_ENDED" };
+    const soonDone = r.status !== "waiting" || this.aheadOf(r) <= notifyAheadOf(this.cfg);
+    this.sql.exec("UPDATE tickets SET push_enabled=1, push_soon_sent=? WHERE id=?", soonDone ? 1 : 0, ticketId);
+    return { ok: true };
+  }
+
+  private aheadOf(r: Row): number {
+    return this.sql
+      .exec<{ n: number }>("SELECT count(*) AS n FROM tickets WHERE status='waiting' AND service_id=? AND sort_key < ?", r.service_id, r.sort_key)
+      .one().n;
+  }
+
+  private pushMsg(r: Row, t: PushMessage["t"], ahead = 0): PushMessage {
+    return { kind: "push", storeId: this.cfg?.id ?? "", ticketId: r.id, t, n: r.number, c: this.counterNo(r.counter_id), ahead, recall: r.recall_count, at: this.now() };
+  }
+
+  /** 事件之後：叫號／過號通知當事人；隊伍前進時檢查「前面剩 N 位」。都只對已訂閱且頁面不在前景的顧客。 */
+  private async pushFor(events: Evt[]): Promise<void> {
+    if (!events.length || this.cfg?.features?.push === false) return;
+    const online = (id: string) => this.ctx.getWebSockets(`ticket:${id}`).length > 0;
+    const out: PushMessage[] = [];
+    for (const e of events) {
+      const kind = pushKindFor(e.type);
+      const r = kind && e.data?.id ? this.ticket(e.data.id) : null;
+      if (kind && r && r.push_enabled && !online(r.id)) out.push(this.pushMsg(r, kind));
+    }
+    if (events.some((e) => e.type.startsWith("ticket."))) {
+      const n = notifyAheadOf(this.cfg);
+      for (const r of this.sql.exec<Row>("SELECT * FROM tickets WHERE status='waiting' AND push_enabled=1 AND push_soon_sent=0").toArray()) {
+        const ahead = this.aheadOf(r);
+        if (ahead > n) continue;
+        this.sql.exec("UPDATE tickets SET push_soon_sent=1 WHERE id=?", r.id);
+        if (!online(r.id)) out.push(this.pushMsg(r, "soon", ahead));
+      }
+    }
+    if (!out.length) return;
+    if (this.capturePush) this.capturedPush.push(...out);
+    else await this.env.Q_PUSH.sendBatch(out.map((body) => ({ body })));
   }
 
   // ---------- 停用（06 §2）----------
@@ -700,6 +753,7 @@ export class StoreQueueDO extends DurableObject<Env> {
     }
     ws.send(ackJson);
     this.broadcast(events);
+    await this.pushFor(events);
     await this.maybeFlush();
   }
 

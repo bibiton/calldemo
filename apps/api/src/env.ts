@@ -6,7 +6,7 @@ export interface Env {
   MEDIA: R2Bucket;
   STORE_QUEUE: DurableObjectNamespace<StoreQueueDO>;
   Q_HISTORY: Queue<HistoryMessage>;
-  Q_PUSH: Queue<unknown>;
+  Q_PUSH: Queue<PushMessage>;
   ENV: "local" | "staging" | "production";
   DEV_BYPASS_ACCESS?: string;
   APP_ORIGINS: string;
@@ -15,6 +15,23 @@ export interface Env {
   JWT_SECRET: string;
   PHONE_PEPPER: string;
   QR_ROOT_SECRET: string;
+  /** Web Push（07 §4）：未設定時整個推播功能關閉（顧客頁只靠前景 WS）。 */
+  VAPID_PUBLIC_KEY?: string;
+  VAPID_PRIVATE_KEY?: string;
+  VAPID_SUBJECT?: string;
+}
+
+/** DO → q-push（ADR-010）：只帶號碼與事件，訂閱金鑰由 consumer 從 D1 讀，DO 不碰。 */
+export interface PushMessage {
+  kind: "push";
+  storeId: string;
+  ticketId: string;
+  t: "called" | "soon" | "skipped";
+  n: string;
+  c: number | null;
+  ahead: number;
+  recall: number;
+  at: number;
 }
 
 /** DO → q-history 的批次訊息（ADR-009）。rows 已去個資。 */

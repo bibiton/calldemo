@@ -7,7 +7,7 @@
  * 冪等：INSERT OR REPLACE，重跑會覆蓋 demo 資料。
  */
 import { execFileSync } from "node:child_process";
-import { createHmac, pbkdf2Sync, randomBytes } from "node:crypto";
+import { createHmac, generateKeyPairSync, pbkdf2Sync, randomBytes } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -32,6 +32,15 @@ if (!existsSync(devVars)) {
   const r = () => randomBytes(36).toString("base64");
   writeFileSync(devVars, `JWT_SECRET=${r()}\nPHONE_PEPPER=${r()}\nQR_ROOT_SECRET=${r()}\n`);
   console.log("• 已產生 apps/api/.dev.vars（隨機本機 secrets）");
+}
+// VAPID（Web Push，07 §4）：舊的 .dev.vars 沒有就補上，不覆蓋既有值
+if (!/^VAPID_PRIVATE_KEY=/m.test(readFileSync(devVars, "utf8"))) {
+  const { privateKey } = generateKeyPairSync("ec", { namedCurve: "prime256v1" });
+  const j = privateKey.export({ format: "jwk" });
+  const pub = Buffer.concat([Buffer.from([4]), Buffer.from(j.x, "base64url"), Buffer.from(j.y, "base64url")]).toString("base64url");
+  const cur = readFileSync(devVars, "utf8");
+  writeFileSync(devVars, `${cur.endsWith("\n") ? cur : cur + "\n"}VAPID_PUBLIC_KEY=${pub}\nVAPID_PRIVATE_KEY=${j.d}\nVAPID_SUBJECT=mailto:dev@example.com\n`);
+  console.log("• 已在 apps/api/.dev.vars 補上本機 VAPID 金鑰");
 }
 const vars = Object.fromEntries(
   readFileSync(devVars, "utf8")

@@ -30,6 +30,8 @@ export interface StoreInfo {
   services: ServiceInfo[];
   counters: CounterInfo[];
   voiceSettings?: Record<string, unknown>;
+  /** 前面剩幾位時發「快輪到您了」推播（1～5，預設 3） */
+  notifyAhead?: number;
 }
 
 export interface ServerEvent<T = any> {

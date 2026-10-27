@@ -80,6 +80,7 @@ async function readStoreFromD1(env: Env, storeId: string): Promise<StoreRecord |
       businessHours: parse(row.business_hours, []),
       features: parse(row.features, {}),
       voiceSettings: parse(row.voice_settings, {}),
+      notifyAhead: row.notify_ahead ?? 3,
       services: (svcs.results as any[]).map((x) => ({ id: x.id, name: x.name, prefix: x.prefix, sortOrder: x.sort_order })),
       counters: (ctrs.results as any[]).map((x) => ({ id: x.id, name: x.name, number: x.number, serviceIds: parse(x.service_ids, []) })),
     },
