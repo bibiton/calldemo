@@ -125,8 +125,17 @@ function Board({ token, storeId, onRevoked }: { token: string; storeId: string; 
       </section>
 
       {/* 廣告（不與 QR 區重疊：版面排除，不是疊上去） */}
-      <section className="overflow-hidden">
+      <section className="relative overflow-hidden">
         <AdArea token={token} ads={ads} version={adsVersion} />
+        {/* DEMO 門店浮水印：廣告區左下角（QR 在廣告區下方右側、近期叫號在下方左側，都不重疊） */}
+        {s?.features?.demo === true && (
+          <span
+            className="pointer-events-none absolute bottom-[1vh] left-[2vw] z-10 rounded-full bg-black/55 px-[1.6vw] py-[0.3vh] text-[1.5vh] font-bold tracking-wider text-white/85"
+            data-testid="demo-badge"
+          >
+            DEMO・虛構品牌
+          </span>
+        )}
       </section>
 
       {/* 近期叫號＋等候；右側留給固定 QR */}

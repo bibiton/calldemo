@@ -42,7 +42,7 @@ const KEY_TEXT: Record<string, string> = {
   prefix: "字首",
 };
 const VALUE_TEXT: Record<string, string> = { store_admin: "店長", staff: "人員", display: "叫號面板", staff_device: "人員手機" };
-const FEATURE_TEXT: Record<string, string> = { push: "背景推播", ads: "面板廣告", voice: "叫號語音", showMaskedName: "遮罩姓名", internal: "內部測試" };
+const FEATURE_TEXT: Record<string, string> = { push: "背景推播", ads: "面板廣告", voice: "叫號語音", showMaskedName: "遮罩姓名", internal: "內部測試", demo: "DEMO 門店", demoSimulate: "模擬叫號" };
 const day = (ms: number | null) => (ms ? new Date(ms).toLocaleDateString("zh-TW") : "不到期");
 
 /** detail 摘要：欄位轉中文（稽核本來就不含個資）。 */

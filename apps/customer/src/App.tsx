@@ -57,7 +57,7 @@ export function App() {
         try {
           const r = await api<{ ticket: Ticket; push: PushInfo; store: StoreLite; images?: string[] }>("/api/tickets/me", { token: saved.token });
           if (ACTIVE.includes(r.ticket.status)) {
-            const s2 = { ...saved, push: r.push, store: { ...saved.store, logoUrl: r.store?.logoUrl ?? saved.store.logoUrl, images: r.images ?? [] } };
+            const s2 = { ...saved, push: r.push, store: { ...saved.store, logoUrl: r.store?.logoUrl ?? saved.store.logoUrl, demo: r.store?.demo ?? saved.store.demo, images: r.images ?? [] } };
             savedTicket.set(s2);
             return setView({ k: "ticket", saved: s2, ticket: r.ticket, existing: false });
           }
@@ -93,7 +93,7 @@ export function App() {
       return <Resume onDone={(saved, ticket) => { savedTicket.set(saved); setView({ k: "ticket", saved, ticket, existing: false }); }} />;
     case "service":
       return (
-        <Shell storeName={view.store.name} logoUrl={view.store.logoUrl} step={1}>
+        <Shell storeName={view.store.name} logoUrl={view.store.logoUrl} demo={view.store.demo} step={1}>
           <h2 className="mb-4 text-xl font-bold">請選擇服務</h2>
           <ul className="flex flex-col gap-3">
             {view.services.map((s) => (
@@ -177,7 +177,7 @@ function TakeForm({
   }
 
   return (
-    <Shell storeName={view.store.name} logoUrl={view.store.logoUrl} step={2}>
+    <Shell storeName={view.store.name} logoUrl={view.store.logoUrl} demo={view.store.demo} step={2}>
       <Hero src={view.store.images?.[0]} />
       <button className="mb-3 min-h-11 self-start text-base text-brand underline" onClick={onBack}>
         ‹ 重新選擇服務

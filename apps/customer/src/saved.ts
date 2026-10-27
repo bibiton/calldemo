@@ -7,6 +7,8 @@ export interface StoreLite {
   logoUrl?: string | null;
   /** 門店勾選「顯示於顧客手機」的圖片（ADR-048） */
   images?: string[];
+  /** DEMO 門店（features.demo）：顯示「DEMO・虛構品牌」浮水印 */
+  demo?: boolean;
 }
 export interface Ticket {
   id: string;

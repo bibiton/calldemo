@@ -26,6 +26,7 @@ import type { AuditRow, Env, HistoryMessage, HistoryRow, PushMessage, UsageBucke
 import { DO_MIGRATIONS } from "./schema";
 import { notifyAheadOf, pushKindFor } from "./push-triggers";
 import { isOffHours } from "../usage/hours";
+import { DEMO_NAMES, SIM_MAX_WAITING, pick, pickAction, simEnabled, simIntervalMs } from "./demo-sim";
 
 export interface License {
   status: "active" | "suspended";
@@ -109,6 +110,8 @@ interface State {
   ord: number;
   u: Usage;
   uh: Usage[];
+  /** DEMO 模擬叫號的櫃台輪替位置（隨 state 列落地，不另寫列） */
+  simRr?: number;
 }
 
 /** 未送出的小時桶上限（約 8 天）：一直沒有關店 alarm 的門店不會讓 state 列無限長大 */
@@ -126,6 +129,9 @@ const HISTORY_BATCH = 25;
 const REPLAY_MAX_GAP = 200;
 const DEFAULT_SERVICE_MS = 3 * 60_000;
 const DAY_MS = 24 * 3600_000;
+/** 模擬叫號在非營業時間暫停時，往後找下一個營業時刻的步長與上限 */
+const SIM_OPEN_STEP_MS = 5 * 60_000;
+const SIM_OPEN_SCAN_MS = 8 * DAY_MS;
 const inList = (xs: string[]) => xs.map((x) => `'${x}'`).join(",");
 
 /** Header 只能 ASCII：JSON 以 encodeURIComponent 包一層。 */
@@ -163,6 +169,8 @@ export class StoreQueueDO extends DurableObject<Env> {
   captured: HistoryMessage[] = [];
   capturePush = false;
   capturedPush: PushMessage[] = [];
+  /** 測試用：模擬叫號的亂數來源 */
+  simRandom: () => number = Math.random;
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
@@ -498,6 +506,7 @@ export class StoreQueueDO extends DurableObject<Env> {
     const att: Attachment = { role: auth.role, ticketId: auth.ticketId, staffId: auth.staffId, deviceId: auth.deviceId };
     server.serializeAttachment(att);
     this.usage("wsConn");
+    if (auth.role === "display") await this.syncSim(); // DEMO 模擬叫號：有面板連上才開始
 
     this.sendJson(server, {
       t: "evt",
@@ -825,6 +834,7 @@ export class StoreQueueDO extends DurableObject<Env> {
   async resume(sctx: StoreCtx): Promise<void> {
     this.usage("rpc");
     this.applyCtx(sctx);
+    await this.syncSim();
   }
 
   /** 門店後台改了設定：套用並廣播 settings.changed（面板重連取新 hello，人員端重抓門店資料）。 */
@@ -833,6 +843,7 @@ export class StoreQueueDO extends DurableObject<Env> {
     this.applyCtx(sctx);
     const e = this.tx(() => this.emit("settings.changed", { version: this.cfgV }));
     this.broadcast([e]);
+    await this.syncSim();
   }
 
   /** 門店後台「今日」報表：直接由 DO 當日資料計算（D1 歷史要關店後才完整）。 */
@@ -1096,18 +1107,67 @@ export class StoreQueueDO extends DurableObject<Env> {
 
   // ---------- 關店 alarm、歷史批次（ADR-009、ADR-015）----------
 
+  /**
+   * 單一 storage alarm 多工（關店＋DEMO 模擬叫號）：兩者的預定時刻各存 meta（close_at／sim_at，""＝沒有），
+   * storage alarm 永遠設在最早的那個。關店的語意與 ADR-009／015 相同：每個營業日一個、由第一張號碼排定。
+   */
   private async ensureAlarm(bd: string): Promise<void> {
-    if ((await this.ctx.storage.getAlarm()) != null) return;
+    if ((await this.closeAtMs()) > 0) return; // 已排定關店 alarm（模擬叫號的 alarm 不算）
     const now = this.now();
     let at = closeAlarmAt(bd, this.cfg?.businessHours ?? [], this.tz);
     if (at < now + 30 * 60_000) at = Math.max(zonedTimeToUtc(bd, "23:59", this.tz) + 30 * 60_000, now + 60 * 60_000);
     this.metaSet("alarm_bd", bd);
-    await this.ctx.storage.setAlarm(at);
+    this.metaSet("close_at", String(at));
+    await this.armAlarm();
+  }
+
+  /**
+   * 已排定的關店時刻（0＝沒有）。升級前建立的 DO 沒有 close_at：既有的 storage alarm 必定是關店 alarm，收編之。
+   * 只要寫過 sim_at（新版才會寫），storage alarm 就可能是模擬步，不收編。
+   */
+  private async closeAtMs(): Promise<number> {
+    const v = this.metaGet("close_at");
+    if (v !== null) return Number(v) || 0;
+    if (this.metaGet("sim_at") !== null) return 0;
+    const a = await this.ctx.storage.getAlarm();
+    if (a == null) return 0;
+    this.metaSet("close_at", String(a));
+    return a;
+  }
+
+  /**
+   * storage alarm ＝ min(close_at, sim_at)；都沒有就刪除。與目前相同時不寫。
+   * force：在 alarm() 內呼叫時，getAlarm() 仍回報正在觸發的那個（handler 結束後由 runtime 清掉），一律重設。
+   */
+  private async armAlarm(force = false): Promise<void> {
+    const pend = [await this.closeAtMs(), Number(this.metaGet("sim_at") || 0)].filter((x) => x > 0);
+    const want = pend.length ? Math.min(...pend) : null;
+    const cur = await this.ctx.storage.getAlarm();
+    if (want === null) {
+      if (cur != null) await this.ctx.storage.deleteAlarm();
+    } else if (force || cur !== want) {
+      await this.ctx.storage.setAlarm(want);
+    }
   }
 
   async alarm(): Promise<void> {
     this.usage("alarms");
     const now = this.now();
+    const closeAt = await this.closeAtMs();
+    const simAt = Number(this.metaGet("sim_at") || 0);
+    const pend = [closeAt, simAt].filter((x) => x > 0);
+    const first = pend.length ? Math.min(...pend) : 0;
+    // 到期者執行；alarm 被提早觸發（測試的 runDurableObjectAlarm）時，最早的那個視為到期。
+    // 兩者都沒有＝舊版 DO 的 alarm（只可能是關店）。
+    const closeDue = !pend.length || (closeAt > 0 && (now >= closeAt || closeAt === first));
+    const simDue = simAt > 0 && (now >= simAt || simAt === first);
+    if (closeDue) await this.closeStore(now);
+    if (simDue) await this.simTick();
+    await this.armAlarm(true);
+  }
+
+  /** 關店（ADR-009、015）：未結束號碼結算、歷史補送、清個資與舊資料。 */
+  private async closeStore(now: number): Promise<void> {
     const bd = this.metaGet("alarm_bd") ?? businessDate(now - DAY_MS, this.tz);
     const e = this.tx(() => {
       this.sql.exec(
@@ -1134,7 +1194,112 @@ export class StoreQueueDO extends DurableObject<Env> {
     // 若已有下一個營業日的號碼（例如午夜後取號），替它排下一個關店 alarm
     const later = this.sql.exec<{ bd: string }>("SELECT min(business_date) AS bd FROM tickets WHERE business_date > ?", bd).one().bd;
     this.metaSet("alarm_bd", "");
+    this.metaSet("close_at", "");
     if (later) await this.ensureAlarm(later);
+  }
+
+  // ---------- DEMO 模擬叫號（13-demo-seed §5；features.demo＋demoSimulate）----------
+
+  /** 模擬叫號的前提（不含營業時間）：DEMO 門店、開了模擬、授權有效、至少一台面板連線中。 */
+  private simReady(): boolean {
+    return !!this.cfg && simEnabled(this.cfg.features) && !this.licenseError() && this.ctx.getWebSockets("role:display").length > 0;
+  }
+
+  private offHours(ms: number): boolean {
+    return isOffHours(ms, this.tz, this.cfg?.businessHours ?? []);
+  }
+
+  /** 下一個營業時刻（5 分鐘粒度，最多往後找 8 天）；找不到回 0。 */
+  private nextOpenAt(now: number): number {
+    const start = Math.ceil((now + 1) / SIM_OPEN_STEP_MS) * SIM_OPEN_STEP_MS;
+    for (let t = start; t < now + SIM_OPEN_SCAN_MS; t += SIM_OPEN_STEP_MS) if (!this.offHours(t)) return t;
+    return 0;
+  }
+
+  /** 面板連上／設定變更／恢復營業時呼叫：該開而沒排就排、不該開就取消。前提不變時不寫任何列。 */
+  private async syncSim(): Promise<void> {
+    const ready = this.simReady();
+    const cur = Number(this.metaGet("sim_at") || 0);
+    if (!ready) {
+      if (!cur) return;
+      this.metaSet("sim_at", "");
+    } else if (!cur) {
+      const now = this.now();
+      const at = this.offHours(now) ? this.nextOpenAt(now) : now + simIntervalMs(this.env.DEMO_SIM_EVERY_SEC);
+      if (!at) return;
+      this.metaSet("sim_at", String(at));
+    }
+    await this.armAlarm();
+  }
+
+  /**
+   * 一步模擬：前提不成立就停（不再排）；非營業時間改排到下一個營業時刻（不在夜裡喚醒）；
+   * 否則補號＋叫號，事件、推播、計量與人員指令完全相同，再排下一步。
+   */
+  private async simTick(): Promise<void> {
+    this.metaSet("sim_at", "");
+    if (!this.simReady()) return;
+    const now = this.now();
+    if (this.offHours(now)) {
+      const at = this.nextOpenAt(now);
+      if (at) this.metaSet("sim_at", String(at));
+      return;
+    }
+    try {
+      const out = this.tx(() => this.simStep());
+      this.broadcast(out.events);
+      await this.pushFor(out.events);
+      if (out.created) await this.ensureAlarm(businessDate(this.now(), this.tz));
+      await this.maybeFlush();
+    } catch (e) {
+      console.error("demo sim step failed", String(e));
+    }
+    this.metaSet("sim_at", String(this.now() + simIntervalMs(this.env.DEMO_SIM_EVERY_SEC)));
+  }
+
+  /** 交易內：等候 < 4 張就補一張（虛構姓名、無手機、source=staff、staff_id=NULL），再叫號／重叫／過號。 */
+  private simStep(): { events: Evt[]; created: boolean } {
+    const att: Attachment = { role: "staff" };
+    const nopre = { phone: null, hmac: null };
+    const rnd = this.simRandom;
+    const events: Evt[] = [];
+    let created = false;
+    const waiting = this.sql.exec<{ n: number }>("SELECT count(*) AS n FROM tickets WHERE status='waiting'").one().n;
+    if (waiting < SIM_MAX_WAITING) {
+      const bd = businessDate(this.now(), this.tz);
+      const open = this.cfg!.services.filter(
+        (s) => !s.dailyLimit || this.sql.exec<{ n: number }>("SELECT count(*) AS n FROM tickets WHERE service_id=? AND business_date=?", s.id, bd).one().n < s.dailyLimit,
+      );
+      if (open.length) {
+        const o = this.runCmd("createTicket", { serviceId: pick(open, rnd()).id, name: pick(DEMO_NAMES, rnd()) }, att, nopre);
+        events.push(...o.events);
+        created = o.ok;
+      }
+    }
+    const act = pickAction(rnd());
+    const last =
+      act === "callNext"
+        ? null
+        : this.sql.exec<Row>("SELECT * FROM tickets WHERE status='called' ORDER BY called_at DESC, call_seq DESC LIMIT 1").toArray()[0];
+    if (last) events.push(...this.runCmd(act, { ticketId: last.id }, att, nopre).events);
+    else events.push(...this.simCallNext(att));
+    return { events, created };
+  }
+
+  /** 櫃台輪流叫下一號（遵守櫃台服務類別；該櫃台沒有可叫的號碼就換下一個）。 */
+  private simCallNext(att: Attachment): Evt[] {
+    const counters = this.cfg!.counters;
+    const n = counters.length;
+    const start = (this.state.simRr ?? 0) % Math.max(1, n);
+    for (let i = 0; i < n; i++) {
+      const idx = (start + i) % n;
+      const o = this.runCmd("callNext", { counterId: counters[idx].id }, att, { phone: null, hmac: null });
+      if (o.ok) {
+        this.state.simRr = (idx + 1) % n;
+        return o.events;
+      }
+    }
+    return [];
   }
 
   private async maybeFlush(): Promise<void> {

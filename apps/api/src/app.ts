@@ -91,6 +91,15 @@ export function createApp(deps: AppDeps = {}) {
     return rec;
   }
 
+  /** 顧客頁看得到的門店資料；DEMO 門店多帶 demo:true（顧客頁顯示浮水印），一般門店不出現此鍵。 */
+  const customerStore = (rec: StoreRecord) => ({
+    id: rec.store.id,
+    code: rec.store.code,
+    name: rec.store.name,
+    logoUrl: rec.store.logoUrl,
+    ...(rec.store.features?.demo === true ? { demo: true } : {}),
+  });
+
   // ---------- 顧客：掃碼 → 取號 session（ADR-012）----------
   app.get("/api/s/:code/session", async (c) => {
     const id = await storeIdByCode(c.env, c.req.param("code"), now());
@@ -110,7 +119,7 @@ export function createApp(deps: AppDeps = {}) {
     return c.json({
       sessionToken,
       expiresAt: exp * 1000,
-      store: { id, code: rec.store.code, name: rec.store.name, logoUrl: rec.store.logoUrl },
+      store: customerStore(rec),
       services: rec.store.services.map((s) => ({ id: s.id, name: s.name, prefix: s.prefix, waiting: waiting[s.id] ?? 0 })),
       push: pushInfo(c, rec),
       images: customerImages(rec, now()),
@@ -144,7 +153,7 @@ export function createApp(deps: AppDeps = {}) {
       store_id: id,
       exp: Math.floor(now() / 1000) + TICKET_TTL_S,
     });
-    return c.json({ ticket: r.ticket, ticketToken, existing: r.existing, store: { id, code: rec.store.code, name: rec.store.name, logoUrl: rec.store.logoUrl }, images: customerImages(rec, now()) });
+    return c.json({ ticket: r.ticket, ticketToken, existing: r.existing, store: customerStore(rec), images: customerImages(rec, now()) });
   });
 
   app.get("/api/tickets/me", async (c) => {
@@ -155,7 +164,7 @@ export function createApp(deps: AppDeps = {}) {
     if (!rec) return err(c, 404, "STORE_NOT_FOUND");
     const ticket = await stub(c, t.store_id).ticketView(await toCtx(c.env, rec, false), t.sub);
     if (!ticket) return err(c, 404, "TICKET_NOT_FOUND");
-    return c.json({ ticket, store: { id: rec.store.id, code: rec.store.code, name: rec.store.name, logoUrl: rec.store.logoUrl }, push: pushInfo(c, rec), images: customerImages(rec, now()) });
+    return c.json({ ticket, store: customerStore(rec), push: pushInfo(c, rec), images: customerImages(rec, now()) });
   });
 
   app.post("/api/tickets/:id/cancel", async (c) => {
@@ -219,7 +228,7 @@ export function createApp(deps: AppDeps = {}) {
     const ticket = await stub(c, row.store_id).ticketView(await toCtx(c.env, rec, false), row.ticket_id);
     if (!ticket || !["waiting", "called", "serving", "skipped"].includes(ticket.status)) return err(c, 409, "TICKET_ENDED");
     const ticketToken = await signJwt(c.env.JWT_SECRET, { sub: row.ticket_id, role: "customer", store_id: row.store_id, exp: Math.floor(now() / 1000) + TICKET_TTL_S });
-    return c.json({ ticketToken, ticket, store: { id: rec.store.id, code: rec.store.code, name: rec.store.name, logoUrl: rec.store.logoUrl }, push: pushInfo(c, rec), images: customerImages(rec, now()) });
+    return c.json({ ticketToken, ticket, store: customerStore(rec), push: pushInfo(c, rec), images: customerImages(rec, now()) });
   });
 
   // ---------- 人員（ADR-004：裝置綁店＋PIN）----------

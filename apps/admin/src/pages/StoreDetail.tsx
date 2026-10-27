@@ -24,6 +24,8 @@ const FEATURES: [string, string, string][] = [
   ["voice", "叫號語音", "面板唸出號碼"],
   ["showMaskedName", "面板顯示遮罩姓名", "例：王○明"],
   ["internal", "內部測試門店", "用量另列「平台」，不分攤 Workers 月費"],
+  ["demo", "DEMO 門店", "面板與顧客頁顯示 DEMO・虛構品牌 浮水印"],
+  ["demoSimulate", "模擬叫號", "DEMO 門店才有效；營業時間內且有面板連線時自動取號叫號"],
 ];
 const CLIENT: Record<string, string> = { android_app: "Android 叫號 App", fully: "Fully Kiosk", chrome_kiosk: "Chrome kiosk", browser: "一般瀏覽器" };
 
@@ -267,7 +269,7 @@ function LimitsForm({ store, adBytes, onSaved, reload }: { store: StoreSummary; 
     maxDevices: String(store.maxDevices),
     maxStaff: String(store.maxStaff),
     adMb: String(mbOf(store.adQuotaBytes)),
-    features: { push: true, ads: true, voice: true, showMaskedName: false, internal: false, ...store.features } as Record<string, boolean>,
+    features: { push: true, ads: true, voice: true, showMaskedName: false, internal: false, demo: false, demoSimulate: false, ...store.features } as Record<string, boolean>,
   };
   const [f, setF] = useState(init);
   const [touched, setTouched] = useState(false);

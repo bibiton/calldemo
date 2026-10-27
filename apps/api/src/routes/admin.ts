@@ -18,7 +18,7 @@ import type { AeFetch } from "../usage/ae";
 
 const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // 去掉 I、O、0、1（易混淆）
 const PW_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789";
-const FEATURE_KEYS = ["push", "ads", "voice", "showMaskedName", "internal"] as const;
+const FEATURE_KEYS = ["push", "ads", "voice", "showMaskedName", "internal", "demo", "demoSimulate"] as const;
 const EMAIL = /^[^\s@]{1,64}@[^\s@]{1,190}\.[^\s@]{2,}$/;
 const MAX_QUOTA = 10 * 1024 ** 3;
 
@@ -195,7 +195,7 @@ export function adminRoutes(deps: Deps & { aeFetch: AeFetch }) {
     const id = ulid(now());
     const uid = ulid(now());
     const password = newPassword();
-    const features = { push: true, ads: true, voice: true, showMaskedName: false, ...(v.features ?? {}) };
+    const features = { push: true, ads: true, voice: true, showMaskedName: false, demo: false, demoSimulate: false, ...(v.features ?? {}) };
     try {
       await c.env.DB.batch([
         c.env.DB.prepare(

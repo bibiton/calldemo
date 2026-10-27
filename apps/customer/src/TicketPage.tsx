@@ -107,7 +107,7 @@ export function TicketPage({
   const called = t.status === "called" || t.status === "serving";
   const showAlert = called && dismissed !== t.recallCount;
   return (
-    <Shell storeName={saved.store.name} logoUrl={saved.store.logoUrl} step={ended ? undefined : 3}>
+    <Shell storeName={saved.store.name} logoUrl={saved.store.logoUrl} demo={saved.store.demo} step={ended ? undefined : 3}>
       {existing && (
         <p className="mb-3 rounded-xl bg-amber-50 p-3 text-base text-amber-900" role="status">
           您已有號碼，以下是您原本的號碼。

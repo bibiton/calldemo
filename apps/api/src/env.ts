@@ -32,6 +32,8 @@ export interface Env {
   VAPID_PUBLIC_KEY?: string;
   VAPID_PRIVATE_KEY?: string;
   VAPID_SUBJECT?: string;
+  /** DEMO 門店模擬叫號的間隔秒數（features.demo＋demoSimulate）；預設 20，限制 10～600 */
+  DEMO_SIM_EVERY_SEC?: string;
 }
 
 /** DO → q-push（ADR-010）：只帶號碼與事件，訂閱金鑰由 consumer 從 D1 讀，DO 不碰。 */

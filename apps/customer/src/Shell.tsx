@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-export function Shell({ children, storeName, logoUrl, step }: { children: React.ReactNode; storeName?: string; logoUrl?: string | null; step?: number }) {
+export function Shell({ children, storeName, logoUrl, step, demo }: { children: React.ReactNode; storeName?: string; logoUrl?: string | null; step?: number; demo?: boolean }) {
   // Logo 讀不到就退回門店名稱（不出現破圖）
   const [logoOk, setLogoOk] = useState(true);
   const showLogo = !!logoUrl && logoOk;
@@ -23,6 +23,11 @@ export function Shell({ children, storeName, logoUrl, step }: { children: React.
         </span>
         {step && <span className="shrink-0 text-sm text-white/80">步驟 {step} / 3</span>}
       </header>
+      {demo && (
+        <p className="bg-amber-100 py-1 text-center text-xs font-bold tracking-wider text-amber-900" data-testid="demo-badge">
+          DEMO・虛構品牌
+        </p>
+      )}
       <main className="flex flex-1 flex-col px-4 pt-5 pb-28">{children}</main>
     </div>
   );
