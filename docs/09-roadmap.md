@@ -37,7 +37,7 @@
 | 0.1 | ⏳ | 最小 DO＝`StoreQueueDO`（acceptWebSocket、auto-response、關店 alarm）已寫且本機測試通過；**部署 staging 連 5 條 WS 過夜看 Duration 平線未做**（本階段不部署） |
 | 0.2 | ✅ | `apps/api/test/m0-runtime.test.ts`；結果寫入 11-local-testing §1 |
 | 0.3 | ⏳ | 本機 workerd 實測 100,000／100,001／600,000 皆可用（不限制）；production 上限待 staging；結果寫入 06-auth |
-| 0.4 | ❌ | Web Push（VAPID＋aes128gcm）未實作；需 Android／iPhone 實機（併入 M2） |
+| 0.4 | ⏳ | VAPID（ES256）＋aes128gcm 已以純 WebCrypto 實作（M2），RFC 8291 附錄 A 測試向量逐位元通過、E2E 經本機假推播端點解密驗證；**Android／iPhone 實機收推播未做**（需 staging HTTPS） |
 | 0.5 | ❌ | 需 Cloudflare 帳號 API token 做 GraphQL introspection；本階段不使用真實帳號 |
 | 0.6 | ⏳ | 1080×1920 版面量測 QR 本體＝39% 螢幕寬（E2E 斷言 ≥ 38%）；2～3 公尺實機掃描未做 |
 | 1.1 | ✅ | pnpm monorepo（api／admin／store／staff／display／customer＋shared）；`pnpm dev` 起 8787＋5171～5175 六個 port 實測可開；T12 靜態檢查腳本＋CI workflow |
@@ -69,6 +69,23 @@
 | 3.4 | 廣告管理：上傳、排序、秒數、時段、容量條 | 超過大小／容量被擋；manifest 版本推送 | Playwright＋實機 |
 | 3.5 | 面板廣告播放：Service Worker 快取、版本更新、斷網續播、叫號讓位 | T15；拔網路線後持續播放 | 實機 |
 | 3.6 | 報表（daily_stats、CSV） | 數字與 tickets_history 一致 | Vitest |
+
+### M2／M3 實作狀態（2026-10-27）
+
+測試數：Vitest **210**（api 130、display 39、shared 35、T12 腳本 6；M1 時 146）＋ Playwright **32**（M1 時 9）。視覺紀錄見 [visual-review-M3.md](visual-review-M3.md)。
+
+| # | 狀態 | 說明 |
+|---|---|---|
+| 2.1 | ⏳ | 顧客頁前景 WS：全螢幕紅底提醒＋響鈴（Web Audio）＋`navigator.vibrate`；重叫再跳一次。E2E 量測人員按重叫 → 顧客頁提醒 **< 1 秒**（本機）。`visibilitychange` 隱藏即關 WS 交給推播。**實機（Android 震動、iPhone 聲音與畫面）未做** |
+| 2.2 | ⏳ | `push_subscriptions` 訂閱 API、DO 推播觸發（叫號／重叫／過號／前面剩 N 位，ADR-035）、q-push consumer：404／410 刪訂閱、429 依 Retry-After／5xx 指數退避重試、3 次後放棄、一批 25 則並行（Vitest `createMessageBatch`）；號碼結束由 q-history 刪訂閱、孤兒 24h Cron。E2E：DO → Queue → consumer → **本機假 push service**，Node 端解密 payload＋驗 VAPID 簽章；Service Worker 收推播顯示通知（CDP `deliverPushMessage`）。**真實 FCM／APNs 實機未做** |
+| 2.3 | ⏳ | iOS Safari 號碼頁：加入主畫面教學＋6 位轉交碼（ADR-034）；主畫面 app `/resume` 輸入轉交碼取回號碼並可開啟背景提醒；PWA manifest（standalone、start_url `/resume`）。E2E 以 Chromium 模擬 iPhone UA 與 standalone。**iOS 16.4+ 實機推播未做** |
+| 3.1 | ✅ | 店長登入（PBKDF2、access 15 分＋HttpOnly refresh cookie 14 天、連錯 5 次鎖 15 分）、服務類別（含每日上限）、櫃台、人員（6 位 PIN 只顯示一次、重設、停用、`max_staff`）、營業時間；每筆寫入同 batch 寫稽核。Vitest＋Playwright |
+| 3.2 | ✅ | 面板／人員手機配對（ADR-036）：超過 `max_devices` → 409；解除配對 → 該裝置 WS 立即 4001、token 401、畫面回配對（ADR-037）。Vitest＋Playwright |
+| 3.3 | ⏳ | 語音設定頁（風格、前綴機率、餐飲業、主題包／單句、叮咚、次數、音量、靜音時段、手機試聽）；**趣味穿插已移除**（ADR-033）。E2E：儲存後面板下一次叫號即用新叮咚、「來賓」、唸 1 次（settings.changed → 重連取新 hello，ADR-038）。**實機聽未做** |
+| 3.4 | ⏳ | 上傳 R2（串流＋伺服器端 SHA-256 驗證、內容定址 key）、前端檢查格式／大小／長度、3:2 只提示（ADR-028）、容量條與 409 QUOTA_EXCEEDED、秒數／時段／星期／日期、啟停、排序（ADR-040）、刪除釋放容量；版本 +1 → DO 廣播 `ads.manifest`。Vitest＋Playwright（51 MB 影片、6 MB 圖片前端擋下）。**實機與 R2 自訂網域（CORS、快取）待 staging** |
+| 3.5 | ⏳ | T15（M1）；面板收到 `ads.manifest` 重抓清單並請 Service Worker 刪除不再使用的素材；語音包漸進快取 `AudioWarmer`（並行 4、叫號時暫停、順序依 07 §7，單元測試）。**拔網路線續播需實機**；production 的 media 網域為跨來源，SW 快取需 R2 自訂網域開 CORS（staging 驗證） |
+| 3.6 | ✅ | `daily_stats` 每日 03 點結算＋查詢補算（ADR-039）；Vitest 逐欄比對 tickets_history（取號、各終態、平均／P90 等候、平均服務、尖峰時段）；今日數字由 DO 即時計算；CSV（BOM）E2E 驗證總數與畫面一致 |
+| 4.2（部分） | ⏳ | 門店停用／到期：門店後台 API 403 `STORE_SUSPENDED`／`STORE_EXPIRED`、後台顯示「服務已暫停」（Vitest＋Playwright）；平台端操作介面屬 M4 |
 
 ## M4 — 總後台與計量
 

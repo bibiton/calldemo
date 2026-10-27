@@ -39,8 +39,9 @@
 | 未加入主畫面者無背景推播 | 號碼頁大字提示「**請保持此頁開啟**」；頁面開著時 WS 響鈴可靠 |
 | 鎖屏後頁面會被凍結 | 號碼頁提示「請勿鎖定螢幕」；可嘗試 Screen Wake Lock API（iOS 支援版本**未查證**，不可用時不影響其他功能） |
 
-- iOS 主畫面轉交：號碼頁「加入主畫面」教學旁顯示 4 位數轉交碼；主畫面 app 開啟時若無 ticket，顯示輸入框輸入轉交碼取回號碼
-  （轉交碼 = ticket token 的短期兌換碼，10 分鐘）。
+- iOS 主畫面轉交：號碼頁「加入主畫面」教學下按「顯示轉交碼」產生 **6 位數**轉交碼（ADR-034，原規劃 4 位數）；主畫面 app 開啟（`/resume`）時若無 ticket，輸入轉交碼取回號碼
+  （`POST /api/tickets/:id/transfer`、`POST /api/transfer/redeem`；D1 只存 ticket_id，10 分鐘、單次）。取回後可按「開啟背景提醒」訂閱推播。
+- iOS Safari 分頁沒有 Web Push：取號時不請求通知權限，只顯示教學（ADR-035）。
 - Web App Manifest：`display: standalone`、`start_url: /resume`。
 
 ## 4. Web Push 實作規格（Worker／Queue consumer）
@@ -48,7 +49,9 @@
 - VAPID：ES256（P-256）。公鑰在前端 `applicationServerKey`；私鑰 `VAPID_PRIVATE_KEY`（Worker secret）。
   JWT claims：`aud` = push endpoint 的 origin、`exp` ≤ 12 小時、`sub` = `mailto:` 平台聯絡信箱。
 - Payload 加密：RFC 8291（`aes128gcm`）——ECDH（P-256）＋ HKDF＋AES-128-GCM，全部用 WebCrypto 完成，不引入 Node 套件。
-- Payload ≤ 4 KB：`{t:"called", n:"A023", c:2, url:"/t/<id>"}`，文字由 Service Worker 組。
+- Payload ≤ 4 KB：`{t:"called"|"soon"|"skipped", n:"A023", c:2, a:<前面人數>, r:<重叫次數>, id, url:"/t/<id>"}`，文字由 Service Worker（`apps/customer/public/notify-text.js`）組：
+  叫號「輪到您了！A023｜請到 2 號櫃台」（重叫「再次叫號：A023」）、快輪到「快輪到您了｜A030 前面還有 3 位…」、過號「A031 已過號｜請洽櫃台人員」；`tag=qcs-<id>`、`renotify`，叫號與過號 `requireInteraction`。
+- 實作：`apps/api/src/lib/webpush.ts`（RFC 8291 附錄 A 測試向量逐位元通過）、`apps/api/src/push-consumer.ts`；請求另帶 `Topic`（同號碼新通知取代未送達的舊通知）；VAPID JWT 每個 push service origin 快取 1 小時。
 - `TTL`：叫號 120 秒、即將輪到 300 秒；`Urgency: high`。
 - 回應 404 / 410 → 刪除該訂閱；429 / 5xx → `message.retry({delaySeconds})`，最多 3 次。
 - consumer 一次 batch 最多 25 則並行送出。

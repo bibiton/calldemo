@@ -33,7 +33,7 @@
 - 限制：DO 若「醒來但沒有任何事件就被驅逐」，那次喚醒不會被計到——而這正是 hibernation 失效的情境，
   所以**夜間異常偵測不能只靠 DO 自己計數**，要搭配 §5 的 GraphQL 數據。
 
-## 3. 資料表（D1，追加 migration `0002_usage.sql`）
+## 3. 資料表（D1，追加 migration `0004_usage.sql`；原規劃編號 0002 已被 M2 使用）
 
 ```sql
 CREATE TABLE usage_hourly (            -- 保留 35 天

@@ -74,6 +74,9 @@ D1 `stores` 是權威來源；KV `license:<storeId>` 是快取。
 - 配對期間的短暫輪詢是唯一允許的輪詢（每台面板一生只發生一次）。
 - 解除配對：門店後台按「移除」→ `token_version + 1` → DO 關閉該裝置連線。
 - 人員裝置（staff_device）同樣流程，差別是配對碼由人員手機顯示、店長確認。
+- 實作（M3）：配對碼放獨立 `pairings` 表（配對前不屬於任何門店），裝置以「配對碼＋輪詢密鑰」領一次 token；`max_devices` 只計面板（ADR-036）。
+  撤銷後面板／人員端在斷線時自查 token，401 回配對／登入畫面（ADR-037）。
+- 門店後台 refresh cookie：`qcs_rt`，`HttpOnly; SameSite=Strict; Path=/api/store/auth`（本機 http 不加 `Secure`）；店長可用 access token 以 `role=staff` 連 WS（即時隊列代操作）。
 
 ## 4. 顧客取號的授權鏈
 

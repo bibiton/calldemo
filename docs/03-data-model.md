@@ -241,8 +241,21 @@ CREATE INDEX idx_audit_at ON audit_logs(at);
 
 ### 用量計量表
 
-`usage_hourly`、`usage_daily`、`usage_monthly`、`billing_inputs` 在 migration `0002_usage.sql`，完整 SQL 見
+`usage_hourly`、`usage_daily`、`usage_monthly`、`billing_inputs` 在 migration `0004_usage.sql`（0002／0003 已用於 M2／M3，見下方「M2／M3 追加」），完整 SQL 見
 [12-usage-metering §3](12-usage-metering.md#3-資料表d1追加-migration-0002_usagesql)。皆不含個資。
+
+### M2／M3 追加（`0002_m2_push.sql`、`0003_m3_store_admin.sql`，皆只加欄位／加表）
+
+| 變更 | 用途 |
+|---|---|
+| `stores.notify_ahead INTEGER NOT NULL DEFAULT 3` | 前面剩幾位時推播「快輪到您了」（1～5，ADR-035） |
+| `transfer_codes(code, store_id, ticket_id, expires_at, created_at)` | iOS 主畫面轉交碼，6 位數、10 分鐘、單次（ADR-034） |
+| `pairings(code, kind, poll_hash, store_id, device_id, expires_at, created_at)` | 裝置配對（ADR-036） |
+| `ad_assets.name TEXT` | 廣告原始檔名（後台清單顯示） |
+| DO `tickets.push_soon_sent`（DO schema v2） | 「快輪到」推播只送一次 |
+| DO meta `config_v`、`qr_json` | 門店設定版本與最新 QR 金鑰（ADR-038） |
+
+Cron 保留期限清理另加：`transfer_codes`（過期即刪）、`pairings`（過期 1 小時後刪）。
 
 ## 2. KV
 

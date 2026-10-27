@@ -84,6 +84,25 @@ T1～T14、T16、T16b、T16c、T17 已寫成測試並通過（`apps/api/test/*`�
 T15 以 jsdom 單元測試＋E2E 實測影片狀態驗證。T18（用量計量）屬 M4，未實作。
 T6 的「q-history 收到批次」以 `captureHistory` 攔截 DO 送出的訊息驗證；consumer 寫入 D1 另由 T13 以 `createMessageBatch` 驗證。
 
+### 3.2.2 M2／M3 實作對照（2026-10-27）
+
+| 範圍 | 測試檔 | 內容 |
+|---|---|---|
+| Web Push 加密 | `apps/api/test/webpush.test.ts` | RFC 8291 附錄 A 向量、獨立解密回推、VAPID 驗章、請求標頭 |
+| 推播觸發／consumer／轉交碼 | `apps/api/test/push.test.ts` | 只在無 WS 時推、soon 一次、notify_ahead、404/410 刪、429/5xx 重試、3 次放棄、25 並行、訂閱驗證、轉交碼 |
+| 門店後台 | `apps/api/test/store-admin.test.ts` | 登入／鎖定／refresh、停用與到期 403、CRUD＋稽核、每日上限、語音設定即時套用、設定版本、QR 重設 |
+| 配對 | `apps/api/test/pairing.test.ts` | 配對碼、輪詢領 token、max_devices、解除即斷線、人員手機、`/api/staff/me` |
+| 廣告 | `apps/api/test/ads.test.ts` | R2 上傳與 SHA-256 驗證、大小／長度／格式、容量、時段、排序、刪除、本機 /media Range |
+| 報表 | `apps/api/test/reports.test.ts` | daily_stats 與 tickets_history 一致、Cron、補算、CSV、今日 DO 數字 |
+| 語音預載 | `apps/display/test/warm.test.ts` | 順序、並行 4、暫停／恢復 |
+
+Playwright 新增 `notify.spec.ts`（M2）、`store-admin.spec.ts`、`pairing.spec.ts`（M3）。
+- 推播 E2E：測試起一個本機假 push service（`e2e/push-helper.ts`，port 6190），顧客頁的 `PushManager.subscribe` 換成回傳指向它的訂閱（headless 沒有推播服務），
+  Worker 實際加密送出，Node 端用 ECDH 解密驗證；`ENV=local` 才允許 `http://127.0.0.1` 推播端點。
+- `notify` 專案用新版 headless Chromium（`channel: "chromium"`）：headless-shell 的 `Notification.permission` 初始值不可靠、通知中心不完整。放在最後跑（main-flow 斷言當日第一號 A001）。
+- 版面量測 helper `layoutIssues()`：每頁斷言無水平捲動、所有按鈕／輸入／開關 ≥ 44×44。
+- 本機 R2：上傳檔存在 wrangler 本機 R2；面板 dev server 把 `/ads/*` 轉到 Worker 的 `/media/ads/*`（只在 `ENV=local` 提供），模擬 production 的 `media.<domain>`。
+
 ### 3.3 E2E：Playwright（手機直版 viewport）
 
 - 執行：`pnpm e2e`。自動起一套**獨立環境**（API 8788、display 6174、customer 6175、staff 6173，state 在 `.e2e-state/` 每次清空重灌 seed），
