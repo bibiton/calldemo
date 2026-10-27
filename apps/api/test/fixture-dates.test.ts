@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
  * （關店把號碼轉 no_show、模擬叫號），測試就會隨真實日期壞掉。新增 fixture 請沿用 2054 年，別用「今天附近」的日期。
  */
 const MIN_YEAR = 2030;
+// @ts-expect-error import.meta.glob 由 Vite 在 vitest 執行時提供；api 套件沒有 vite/client 型別（Vite 需要字面呼叫，不能先取出函式）
 const sources = import.meta.glob("./*.test.ts", { query: "?raw", import: "default", eager: true }) as Record<string, string>;
 
 describe("fixture 日期不依賴真實時間", () => {
