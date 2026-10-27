@@ -12,7 +12,7 @@ import { seedStore } from "./fixtures";
 import { isType, openWs, staffCmd, storeCtx, stubFor } from "./helpers";
 import type { StoreQueueDO } from "../src/do/store-queue";
 
-const T0 = Date.UTC(2026, 9, 27, 4, 0); // 台北 12:00
+const T0 = Date.UTC(2054, 9, 27, 4, 0); // 台北 12:00
 
 describe("部署驗證：/health 回報部署版本", () => {
   it("有 VERSION（deploy.sh 帶入 git sha）就回它；本機回預設版本", async () => {
@@ -93,6 +93,7 @@ describe("5.2 個資：完整流程後 D1 全表沒有姓名／手機原文；�
     const PHONE = "0987654321";
     const PHONE2 = "0911222333";
     const app = createApp({ now: () => T0 });
+    await runInDurableObject(stubFor(s.storeId), (i: StoreQueueDO) => i.setClock(() => T0)); // 第一張號碼也用 T0 的營業日
     const key = await deriveStoreKey(env.QR_ROOT_SECRET, s.storeId, 1);
     const w = qrWindow(T0);
     const sess: any = await (await app.request(`/api/s/${s.code}/session?w=${w}&k=${await computeQrToken(key, s.storeId, w)}`, {}, env)).json();

@@ -87,20 +87,20 @@ describe("T5 每日歸零（門店時區）", () => {
 
   it("跨台灣午夜後取號從 001 起", async () => {
     const id = uniq();
-    await setClock(id, Date.UTC(2026, 9, 27, 15, 50)); // 台北 10/27 23:50
+    await setClock(id, Date.UTC(2054, 9, 27, 15, 50)); // 台北 10/27 23:50
     await take(id, 1);
     const b: any = await take(id, 2);
     expect(b.ticket.number).toBe("A002");
-    await setClock(id, Date.UTC(2026, 9, 27, 16, 5)); // 台北 10/28 00:05
+    await setClock(id, Date.UTC(2054, 9, 27, 16, 5)); // 台北 10/28 00:05
     const c: any = await take(id, 3);
     expect(c.ticket.number).toBe("A001");
   });
 
   it("跨 UTC 午夜但未跨台灣午夜 → 不歸零", async () => {
     const id = uniq();
-    await setClock(id, Date.UTC(2026, 9, 27, 23, 50)); // 台北 10/28 07:50
+    await setClock(id, Date.UTC(2054, 9, 27, 23, 50)); // 台北 10/28 07:50
     await take(id, 1);
-    await setClock(id, Date.UTC(2026, 9, 28, 0, 10)); // 台北 10/28 08:10
+    await setClock(id, Date.UTC(2054, 9, 28, 0, 10)); // 台北 10/28 08:10
     const b: any = await take(id, 2);
     expect(b.ticket.number).toBe("A002");
   });
@@ -111,15 +111,15 @@ describe("T6 關店 Alarm", () => {
     const id = uniq();
     const stub = stubFor(id);
     await runInDurableObject(stub, (inst: StoreQueueDO) => {
-      inst.setClock(() => Date.UTC(2026, 9, 27, 4, 0)); // 台北 12:00
+      inst.setClock(() => Date.UTC(2054, 9, 27, 4, 0)); // 台北 12:00
       inst.captureHistory = true;
     });
     const a: any = await take(id, 1);
     await take(id, 2);
     await stub.cancelTicket(storeCtx(id), a.ticket.id);
     const alarmAt = await runInDurableObject(stub, (_i: StoreQueueDO, st) => st.storage.getAlarm());
-    expect(alarmAt).toBe(Date.UTC(2026, 9, 27, 16, 29)); // 無營業時間設定 → 23:59 + 30 分（台北）
-    await runInDurableObject(stub, (inst: StoreQueueDO) => inst.setClock(() => Date.UTC(2026, 9, 27, 16, 30)));
+    expect(alarmAt).toBe(Date.UTC(2054, 9, 27, 16, 29)); // 無營業時間設定 → 23:59 + 30 分（台北）
+    await runInDurableObject(stub, (inst: StoreQueueDO) => inst.setClock(() => Date.UTC(2054, 9, 27, 16, 30)));
     expect(await runDurableObjectAlarm(stub)).toBe(true);
     const r = await runInDurableObject(stub, (inst: StoreQueueDO, st) => ({
       rows: st.storage.sql.exec("SELECT status, name, phone, flushed FROM tickets ORDER BY no").toArray(),
@@ -136,11 +136,11 @@ describe("T6 關店 Alarm", () => {
   it("營業時間有設定時，alarm 在關店後 30 分", async () => {
     const id = uniq();
     const stub = stubFor(id);
-    await runInDurableObject(stub, (inst: StoreQueueDO) => inst.setClock(() => Date.UTC(2026, 9, 27, 4, 0)));
+    await runInDurableObject(stub, (inst: StoreQueueDO) => inst.setClock(() => Date.UTC(2054, 9, 27, 4, 0)));
     const ctx = storeCtx(id, { businessHours: [{ dow: 2, open: "11:00", close: "21:30" }] });
     await stub.takeTicket(ctx, { jti: "j", serviceId: "svc_a", name: "王小明", phone: phone(1) });
     const alarmAt = await runInDurableObject(stub, (_i: StoreQueueDO, st) => st.storage.getAlarm());
-    expect(alarmAt).toBe(Date.UTC(2026, 9, 27, 14, 0)); // 台北 22:00
+    expect(alarmAt).toBe(Date.UTC(2054, 9, 27, 14, 0)); // 台北 22:00
   });
 
   it("滿 25 筆已結束即送一包（不等關店）", async () => {

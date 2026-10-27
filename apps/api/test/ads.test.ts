@@ -116,9 +116,9 @@ describe("3.4 廣告管理：上傳到 R2、容量、排序、秒數、時段", 
     let l = await list(t);
     const [a, b] = l.items;
     const v0 = l.version;
-    const upd = { imageMs: 12000, enabled: false, activeFrom: "11:00", activeTo: "14:00", dows: [1, 2, 3], startDate: "2026-11-01", endDate: "2026-11-30" };
+    const upd = { imageMs: 12000, enabled: false, activeFrom: "11:00", activeTo: "14:00", dows: [1, 2, 3], startDate: "2054-11-01", endDate: "2054-11-30" };
     expect((await req(`/api/store/ads/items/${a.itemId}`, { method: "PUT", token: t, body: upd })).status).toBe(200);
-    for (const bad of [{ imageMs: 500 }, { activeFrom: "25:00" }, { activeFrom: "14:00", activeTo: "11:00" }, { dows: [7] }, { startDate: "2026-13-01" }, { startDate: "2026-11-30", endDate: "2026-11-01" }]) {
+    for (const bad of [{ imageMs: 500 }, { activeFrom: "25:00" }, { activeFrom: "14:00", activeTo: "11:00" }, { dows: [7] }, { startDate: "2054-13-01" }, { startDate: "2054-11-30", endDate: "2054-11-01" }]) {
       expect((await req(`/api/store/ads/items/${a.itemId}`, { method: "PUT", token: t, body: { ...upd, ...bad } })).status, JSON.stringify(bad)).toBe(422);
     }
     expect((await req("/api/store/ads/order", { token: t, body: { itemIds: [b.itemId, a.itemId] } })).status).toBe(200);
@@ -166,7 +166,7 @@ describe("3.4 廣告管理：上傳到 R2、容量、排序、秒數、時段", 
 });
 
 describe("顧客手機圖片（ADR-048）：廣告項目「顯示於顧客手機」", () => {
-  const T = Date.UTC(2026, 9, 27, 4, 0); // 台北 週二 12:00
+  const T = Date.UTC(2054, 9, 27, 4, 0); // 台北 週二 12:00
   const appAt = createApp({ now: () => T });
   const custSession = async (s: Seeded) => {
     const { computeQrToken, deriveStoreKey, qrWindow } = await import("@qcs/shared");
@@ -207,7 +207,7 @@ describe("顧客手機圖片（ADR-048）：廣告項目「顯示於顧客手機
     expect((await custSession(s)).images).toEqual([]);
     await setItem(t, img.itemId, { showOnCustomer: true, dows: [0] });
     expect((await custSession(s)).images).toEqual([]);
-    await setItem(t, img.itemId, { showOnCustomer: true, endDate: "2026-10-01" });
+    await setItem(t, img.itemId, { showOnCustomer: true, endDate: "2054-10-01" });
     expect((await custSession(s)).images).toEqual([]);
     await setItem(t, img.itemId, { showOnCustomer: true, enabled: false });
     expect((await custSession(s)).images).toEqual([]);

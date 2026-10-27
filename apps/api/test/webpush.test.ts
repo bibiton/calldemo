@@ -112,7 +112,7 @@ describe("VAPID（ES256 JWT）", () => {
   it("JWT 可用公鑰驗章；aud＝endpoint origin、exp ≤ 12 小時、sub＝mailto", async () => {
     const v = await newVapid();
     const keys = await importVapid(v);
-    const now = Date.UTC(2026, 9, 27, 4);
+    const now = Date.UTC(2054, 9, 27, 4);
     const jwt = await vapidJwt(keys, "https://fcm.googleapis.com", now);
     const [h, p, s] = jwt.split(".");
     expect(JSON.parse(dec.decode(b64urlDecode(h)))).toEqual({ typ: "JWT", alg: "ES256" });

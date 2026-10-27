@@ -20,7 +20,7 @@ import {
 import type { StoreQueueDO } from "../src/do/store-queue";
 
 const staffAuth = { role: "staff", staffId: "u1", deviceId: "sd1" };
-const T = Date.UTC(2026, 9, 27, 4, 0, 0, 123); // 台北 12:00:00.123
+const T = Date.UTC(2054, 9, 27, 4, 0, 0, 123); // 台北 12:00:00.123
 
 const freeze = (id: string, t = T) =>
   runInDurableObject(stubFor(id), (i: StoreQueueDO) => i.setClock(() => t));

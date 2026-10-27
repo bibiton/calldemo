@@ -5,7 +5,7 @@ import { computeQrToken, deriveStoreKey, qrWindow } from "@qcs/shared";
 import { seedStore } from "./fixtures";
 import { isType } from "./helpers";
 
-const T0 = Date.UTC(2026, 9, 27, 4, 0); // 台北 12:00
+const T0 = Date.UTC(2054, 9, 27, 4, 0); // 台北 12:00
 
 function appAt(now = T0) {
   const app = createApp({ now: () => now });

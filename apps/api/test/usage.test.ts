@@ -50,7 +50,7 @@ const rowsWritten = (storeId: string) =>
   runInDurableObject(stubFor(storeId), (inst: StoreQueueDO) => ((inst as any).__cursors as SqlStorageCursor<any>[]).reduce((a, c) => a + c.rowsWritten, 0));
 
 async function scenario(storeId: string, metering: boolean) {
-  const T = Date.UTC(2026, 9, 27, 4, 0);
+  const T = Date.UTC(2054, 9, 27, 4, 0);
   await runInDurableObject(stubFor(storeId), (i: StoreQueueDO) => {
     i.setClock(() => T);
     i.setMetering(metering);
@@ -122,18 +122,18 @@ describe("q-history consumer：DO 小時桶 → usage_hourly", () => {
   it("同店同小時累加；不同小時分列；不合法的桶略過", async () => {
     const sid = uniq("u");
     const b = (h: string, n: number) => ({ h, wsConn: n, wsIn: 10 * n, rpc: n, alarms: 0, tickets: n, calls: n, events: 2 * n, wakes: n, rowsW: 3 * n });
-    await writeHistory(env, { kind: "history", storeId: sid, rows: [], audits: [], usage: [b("2026-10-20T05", 1), b("2026-10-20T06", 2)] });
-    await writeHistory(env, { kind: "history", storeId: sid, rows: [], audits: [], usage: [b("2026-10-20T05", 4), { h: "垃圾" } as any] });
+    await writeHistory(env, { kind: "history", storeId: sid, rows: [], audits: [], usage: [b("2054-10-20T05", 1), b("2054-10-20T06", 2)] });
+    await writeHistory(env, { kind: "history", storeId: sid, rows: [], audits: [], usage: [b("2054-10-20T05", 4), { h: "垃圾" } as any] });
     const rows = await env.DB.prepare("SELECT hour_start, ws_connects, ws_messages, tickets, do_rows_written FROM usage_hourly WHERE store_id=? ORDER BY hour_start").bind(sid).all<any>();
     expect(rows.results).toEqual([
-      { hour_start: Date.UTC(2026, 9, 20, 5), ws_connects: 5, ws_messages: 50, tickets: 5, do_rows_written: 15 },
-      { hour_start: Date.UTC(2026, 9, 20, 6), ws_connects: 2, ws_messages: 20, tickets: 2, do_rows_written: 6 },
+      { hour_start: Date.UTC(2054, 9, 20, 5), ws_connects: 5, ws_messages: 50, tickets: 5, do_rows_written: 15 },
+      { hour_start: Date.UTC(2054, 9, 20, 6), ws_connects: 2, ws_messages: 20, tickets: 2, do_rows_written: 6 },
     ]);
   });
 
   it("晚到的桶（該日已彙總）→ 自動重算該店該日", async () => {
     const s = await seedStore();
-    const date = "2026-10-21";
+    const date = new Date(Date.now() - 2 * 86400_000).toISOString().slice(0, 10); // 遲到判定用真實 Date.now()（queue-consumer），日期必須是真實的過去
     await writeHistory(env, { kind: "history", storeId: s.storeId, rows: [], audits: [], usage: [{ h: `${date}T05`, wsConn: 1, wsIn: 0, rpc: 0, alarms: 0, tickets: 3, calls: 0, events: 0, wakes: 0, rowsW: 0 }] });
     await rollupDay(env, date, { storeIds: [s.storeId] });
     await writeHistory(env, { kind: "history", storeId: s.storeId, rows: [], audits: [], usage: [{ h: `${date}T09`, wsConn: 0, wsIn: 0, rpc: 0, alarms: 0, tickets: 4, calls: 0, events: 0, wakes: 0, rowsW: 0 }] });
@@ -157,11 +157,11 @@ describe("q-push consumer：每批依店計數（ADR-044）", () => {
     const msg = (ticketId: string, attempts = 1) => ({ id: ticketId, timestamp: new Date(), attempts, body: { kind: "push", storeId: sid, ticketId, t: "called", n: "A001", c: 1, ahead: 0, recall: 0, at: Date.now() } });
     const batch = createMessageBatch("qcs-push-local", [msg(ids[0]), msg(ids[1]), msg(ids[2]), msg(ids[3], 4)] as any);
     const status: Record<string, number> = { [ids[0]]: 201, [ids[1]]: 410, [ids[2]]: 503, [ids[3]]: 503 };
-    const NOW = Date.UTC(2026, 9, 22, 7, 30);
+    const NOW = Date.UTC(2054, 9, 22, 7, 30);
     await handlePushBatch(batch as any, env, { fetch: async (r) => new Response(null, { status: status[new URL(r.url).pathname.slice(1)] }), now: () => NOW });
     await getQueueResult(batch as any, {} as any).catch(() => null);
     const row = await env.DB.prepare("SELECT hour_start, push_sent, push_failed FROM usage_hourly WHERE store_id=?").bind(sid).first<any>();
-    expect(row).toEqual({ hour_start: Date.UTC(2026, 9, 22, 7), push_sent: 3, push_failed: 2 });
+    expect(row).toEqual({ hour_start: Date.UTC(2054, 9, 22, 7), push_sent: 3, push_failed: 2 });
   });
 });
 
@@ -202,34 +202,34 @@ const aeEnv = () => envWith({ CF_ACCOUNT_ID: "acc123", AE_API_TOKEN: "ae-token",
 describe("Analytics Engine SQL 匯入（每日 Cron）", () => {
   it("依店依小時寫入 API 欄位；以 _sample_interval 加權；排除 DO 點；重跑不重複累加；不認得的 index 略過", async () => {
     const sid = (await seedStore()).storeId;
-    const date = "2026-10-23";
+    const date = "2054-10-23";
     const ae = fakeAe({
       all: [
-        { store: sid, hour: "2026-10-23 05:00:00", req: 120, wall: 2400 },
-        { store: sid, hour: "2026-10-23 06:00:00", req: 30, wall: 300 },
-        { store: "not-a-store", hour: "2026-10-23 06:00:00", req: 99, wall: 1 },
+        { store: sid, hour: "2054-10-23 05:00:00", req: 120, wall: 2400 },
+        { store: sid, hour: "2054-10-23 06:00:00", req: 30, wall: 300 },
+        { store: "not-a-store", hour: "2054-10-23 06:00:00", req: 99, wall: 1 },
       ],
-      err: [{ store: sid, hour: "2026-10-23 05:00:00", req: 2 }],
+      err: [{ store: sid, hour: "2054-10-23 05:00:00", req: 2 }],
     });
     for (let i = 0; i < 2; i++) expect(await importAeDay(aeEnv(), date, ae.fetchFn)).toEqual({ rows: 2 });
     expect(await env.DB.prepare("SELECT 1 FROM usage_hourly WHERE store_id='not-a-store'").first()).toBeNull();
     expect(ae.sqls[0]).toContain("_sample_interval");
-    expect(ae.sqls[0]).toContain("toDateTime('2026-10-23 00:00:00')");
-    expect(ae.sqls[0]).toContain("toDateTime('2026-10-24 00:00:00')");
+    expect(ae.sqls[0]).toContain("toDateTime('2054-10-23 00:00:00')");
+    expect(ae.sqls[0]).toContain("toDateTime('2054-10-24 00:00:00')");
     expect(ae.sqls[0]).toContain("blob4 != 'do'");
     const rows = await env.DB.prepare("SELECT hour_start, api_requests, api_errors, api_wall_ms FROM usage_hourly WHERE store_id=? ORDER BY hour_start").bind(sid).all<any>();
     expect(rows.results).toEqual([
-      { hour_start: Date.UTC(2026, 9, 23, 5), api_requests: 120, api_errors: 2, api_wall_ms: 2400 },
-      { hour_start: Date.UTC(2026, 9, 23, 6), api_requests: 30, api_errors: 0, api_wall_ms: 300 },
+      { hour_start: Date.UTC(2054, 9, 23, 5), api_requests: 120, api_errors: 2, api_wall_ms: 2400 },
+      { hour_start: Date.UTC(2054, 9, 23, 6), api_requests: 30, api_errors: 0, api_wall_ms: 300 },
     ]);
   });
   it("未設定 AE（本機）→ 略過，不呼叫網路", async () => {
     let called = false;
-    expect(await importAeDay(env, "2026-10-23", async () => ((called = true), new Response("{}")))).toEqual({ skipped: "AE_NOT_CONFIGURED" });
+    expect(await importAeDay(env, "2054-10-23", async () => ((called = true), new Response("{}")))).toEqual({ skipped: "AE_NOT_CONFIGURED" });
     expect(called).toBe(false);
   });
   it("dataset 名稱不合法 → 略過（防 SQL 注入）", async () => {
-    expect(await importAeDay(envWith({ CF_ACCOUNT_ID: "a", AE_API_TOKEN: "b", AE_DATASET: "x; DROP" }), "2026-10-23", async () => new Response("{}"))).toEqual({ skipped: "AE_DATASET_INVALID" });
+    expect(await importAeDay(envWith({ CF_ACCOUNT_ID: "a", AE_API_TOKEN: "b", AE_DATASET: "x; DROP" }), "2054-10-23", async () => new Response("{}"))).toEqual({ skipped: "AE_DATASET_INVALID" });
   });
 });
 
@@ -239,21 +239,21 @@ describe("非營業時間判斷", () => {
   const hours = [{ dow: 2, open: "11:00", close: "21:30" }, { dow: 5, open: "18:00", close: "02:00" }]; // 週二、週五跨午夜
   it("依門店時區與營業時間；跨午夜時段；未設定時以 02:00～06:00 為深夜", () => {
     const tp = (y: number, m: number, d: number, h: number) => Date.UTC(y, m - 1, d, h - 8); // 台北時間
-    expect(isOffHours(tp(2026, 10, 27, 12), "Asia/Taipei", hours)).toBe(false); // 週二 12:00
-    expect(isOffHours(tp(2026, 10, 27, 22), "Asia/Taipei", hours)).toBe(true);
-    expect(isOffHours(tp(2026, 10, 31, 1), "Asia/Taipei", hours)).toBe(false); // 週六 01:00 屬週五跨午夜
-    expect(isOffHours(tp(2026, 10, 31, 3), "Asia/Taipei", hours)).toBe(true);
-    expect(isOffHours(tp(2026, 10, 27, 3), "Asia/Taipei", [])).toBe(true);
-    expect(isOffHours(tp(2026, 10, 27, 12), "Asia/Taipei", [])).toBe(false);
+    expect(isOffHours(tp(2054, 10, 27, 12), "Asia/Taipei", hours)).toBe(false); // 週二 12:00
+    expect(isOffHours(tp(2054, 10, 27, 22), "Asia/Taipei", hours)).toBe(true);
+    expect(isOffHours(tp(2054, 10, 31, 1), "Asia/Taipei", hours)).toBe(false); // 週六 01:00 屬週五跨午夜
+    expect(isOffHours(tp(2054, 10, 31, 3), "Asia/Taipei", hours)).toBe(true);
+    expect(isOffHours(tp(2054, 10, 27, 3), "Asia/Taipei", [])).toBe(true);
+    expect(isOffHours(tp(2054, 10, 27, 12), "Asia/Taipei", [])).toBe(false);
   });
 });
 
 describe("日彙總與估算成本", () => {
   it("dailyFromHourly：DO 請求估算＝WS 訊息/20＋連線＋RPC＋alarm；活躍秒數＝事件×0.05＋喚醒×0.01；夜間喚醒取 DO 自計與 AE 較大者", () => {
     const tz = "Asia/Taipei";
-    const night = Date.UTC(2026, 9, 26, 19); // 台北 03:00
-    const day = Date.UTC(2026, 9, 26, 4); // 台北 12:00
-    const d = dailyFromHourly("s", "2026-10-26", [
+    const night = Date.UTC(2054, 9, 26, 19); // 台北 03:00
+    const day = Date.UTC(2054, 9, 26, 4); // 台北 12:00
+    const d = dailyFromHourly("s", "2054-10-26", [
       { hour_start: day, api_requests: 1000, ws_messages: 400, ws_connects: 5, do_rpc: 30, do_alarms: 1, do_events: 200, do_wakes: 50, do_rows_written: 600, tickets: 40, push_sent: 10 },
       { hour_start: night, do_wakes: 3, do_night_wakes: 14 },
     ], tz, [], 2_000_000_000, 1234, 31);
@@ -276,9 +276,9 @@ describe("日彙總與估算成本", () => {
 
   it("rollupDay：每家未封存門店一列（含無活動）、r2_bytes 來自 ad_assets、冪等", async () => {
     const s = await seedStore();
-    const date = "2026-10-24";
+    const date = "2054-10-24";
     await env.DB.prepare("INSERT INTO ad_assets(id,owner_type,owner_id,kind,r2_key,sha256,mime,bytes,status,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)").bind(`${s.storeId}_a1`, "store", s.storeId, "image", "k", "h", "image/png", 5_000_000, "ready", Date.now()).run();
-    await env.DB.prepare("INSERT INTO usage_hourly(store_id,hour_start,tickets,ws_connects) VALUES(?,?,?,?)").bind(s.storeId, Date.UTC(2026, 9, 24, 3), 12, 2).run();
+    await env.DB.prepare("INSERT INTO usage_hourly(store_id,hour_start,tickets,ws_connects) VALUES(?,?,?,?)").bind(s.storeId, Date.UTC(2054, 9, 24, 3), 12, 2).run();
     await rollupDay(env, date);
     await rollupDay(env, date);
     const rows = await env.DB.prepare("SELECT * FROM usage_daily WHERE store_id=? AND date=?").bind(s.storeId, date).all<any>();
@@ -288,19 +288,19 @@ describe("日彙總與估算成本", () => {
 
   it("ensureDaily：只補「有小時資料、沒有日彙總」的過去日子，不算今天", async () => {
     const s = await seedStore();
-    const now = Date.UTC(2026, 10, 3, 10);
-    await env.DB.prepare("INSERT INTO usage_hourly(store_id,hour_start,tickets) VALUES(?,?,?),(?,?,?)").bind(s.storeId, Date.UTC(2026, 10, 1, 3), 5, s.storeId, Date.UTC(2026, 10, 3, 3), 7).run();
-    const done = await ensureDaily(env, "2026-11-01", "2026-11-03", now);
-    expect(done).toContain("2026-11-01");
-    expect(done).not.toContain("2026-11-03");
-    expect(await ensureDaily(env, "2026-11-01", "2026-11-03", now)).toEqual([]);
+    const now = Date.UTC(2054, 10, 3, 10);
+    await env.DB.prepare("INSERT INTO usage_hourly(store_id,hour_start,tickets) VALUES(?,?,?),(?,?,?)").bind(s.storeId, Date.UTC(2054, 10, 1, 3), 5, s.storeId, Date.UTC(2054, 10, 3, 3), 7).run();
+    const done = await ensureDaily(env, "2054-11-01", "2054-11-03", now);
+    expect(done).toContain("2054-11-01");
+    expect(done).not.toContain("2054-11-03");
+    expect(await ensureDaily(env, "2054-11-01", "2054-11-03", now)).toEqual([]);
   });
 });
 
 // ---------- 分攤 ----------
 
 const mrow = (id: string, over: Partial<MonthRow>): MonthRow => ({
-  ...monthFromDaily(id, "2026-09", []),
+  ...monthFromDaily(id, "2054-09", []),
   active_days: 30,
   ...over,
 });
@@ -338,11 +338,11 @@ describe("帳單分攤（12 §5）", () => {
 describe("月彙總、警示、Cron", () => {
   it("buildMonth：日加總、r2_byte_days、估算總額；輸入帳單後有分攤；persistMonth 寫 usage_monthly", async () => {
     const s = await seedStore();
-    const month = "2026-08";
-    for (const [d, t] of [["2026-08-02", 10], ["2026-08-03", 20]] as const) {
+    const month = "2054-08";
+    for (const [d, t] of [["2054-08-02", 10], ["2054-08-03", 20]] as const) {
       await env.DB.prepare("INSERT INTO usage_hourly(store_id,hour_start,tickets,api_requests) VALUES(?,?,?,?)").bind(s.storeId, Date.parse(`${d}T03:00:00Z`), t, t * 7).run();
     }
-    const now = Date.UTC(2026, 8, 5);
+    const now = Date.UTC(2054, 8, 5);
     let rep = await buildMonth(env, month, now);
     const mine = rep.rows.find((r) => r.store_id === s.storeId)!;
     expect(mine).toMatchObject({ tickets: 30, api_requests: 210, active_days: 2, allocated_cost_usd: null });
@@ -360,11 +360,11 @@ describe("月彙總、警示、Cron", () => {
 
   it("警示：請求暴增、每號請求過高、推播失敗率、廣告容量（90% 黃、100% 紅）", async () => {
     const s = await seedStore({ adQuota: 1000 });
-    const now = Date.UTC(2026, 9, 15, 6);
+    const now = Date.UTC(2054, 9, 15, 6);
     const ins = (date: string, o: Record<string, number>) =>
       env.DB.prepare(`INSERT OR REPLACE INTO usage_daily(store_id,date,${Object.keys(o).join(",")}) VALUES(?,?,${Object.keys(o).map(() => "?").join(",")})`).bind(s.storeId, date, ...Object.values(o)).run();
-    for (let d = 7; d <= 13; d++) await ins(`2026-10-${String(d).padStart(2, "0")}`, { api_requests: 2000 });
-    await ins("2026-10-14", { api_requests: 9000, tickets: 10, do_requests_est: 300, push_sent: 20, push_failed: 6 });
+    for (let d = 7; d <= 13; d++) await ins(`2054-10-${String(d).padStart(2, "0")}`, { api_requests: 2000 });
+    await ins("2054-10-14", { api_requests: 9000, tickets: 10, do_requests_est: 300, push_sent: 20, push_failed: 6 });
     await env.DB.prepare("INSERT INTO ad_assets(id,owner_type,owner_id,kind,r2_key,sha256,mime,bytes,status,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)").bind(`${s.storeId}_q`, "store", s.storeId, "image", "k", "h", "image/png", 950, "ready", now).run();
     let a = (await storeAlerts(env, [s.storeId], now)).get(s.storeId)!;
     expect(a.map((x) => x.kind).sort()).toEqual(["ad_quota", "per_ticket", "push_fail", "request_spike"]);
@@ -376,19 +376,19 @@ describe("月彙總、警示、Cron", () => {
 
   it("推播樣本太少（< 10）不判失敗率；請求量低於 5,000 不判暴增", async () => {
     const s = await seedStore();
-    const now = Date.UTC(2026, 9, 15, 6);
-    await env.DB.prepare("INSERT INTO usage_daily(store_id,date,api_requests,push_sent,push_failed) VALUES(?,?,?,?,?),(?,?,?,?,?)").bind(s.storeId, "2026-10-13", 10, 0, 0, s.storeId, "2026-10-14", 4000, 3, 3).run();
+    const now = Date.UTC(2054, 9, 15, 6);
+    await env.DB.prepare("INSERT INTO usage_daily(store_id,date,api_requests,push_sent,push_failed) VALUES(?,?,?,?,?),(?,?,?,?,?)").bind(s.storeId, "2054-10-13", 10, 0, 0, s.storeId, "2054-10-14", 4000, 3, 3).run();
     expect((await storeAlerts(env, [s.storeId], now)).get(s.storeId)).toEqual([]);
   });
 
   it("Cron 分派：UTC 01 點做前一日彙總（含 AE 匯入）；每月 1 日 02 點月結；其他時刻不動作", async () => {
     const ae = fakeAe({});
-    expect(await runUsageCron(aeEnv(), Date.UTC(2026, 9, 26, 5, 5), ae.fetchFn)).toEqual({});
-    const r = await runUsageCron(aeEnv(), Date.UTC(2026, 9, 26, 1, 5), ae.fetchFn);
-    expect(r.daily).toMatchObject({ date: "2026-10-25" });
+    expect(await runUsageCron(aeEnv(), Date.UTC(2054, 9, 26, 5, 5), ae.fetchFn)).toEqual({});
+    const r = await runUsageCron(aeEnv(), Date.UTC(2054, 9, 26, 1, 5), ae.fetchFn);
+    expect(r.daily).toMatchObject({ date: "2054-10-25" });
     expect(r.ae).toEqual({ rows: 0 });
-    const m = await runUsageCron(env, Date.UTC(2026, 10, 1, 2, 5), ae.fetchFn);
-    expect(m.monthly).toMatchObject({ month: "2026-10" });
+    const m = await runUsageCron(env, Date.UTC(2054, 10, 1, 2, 5), ae.fetchFn);
+    expect(m.monthly).toMatchObject({ month: "2054-10" });
   });
 });
 

@@ -56,8 +56,8 @@ describe("保留期限 Cron", () => {
   it("刪除 90 天前的歷史、24 小時前的推播訂閱", async () => {
     const now = Date.now();
     await env.DB.batch([
-      env.DB.prepare("INSERT INTO tickets_history(id,store_id,business_date,service_id,number,final_status,created_at,ended_at) VALUES('old','s','2026-01-01','a','A001','done',0,?)").bind(now - 91 * 86400_000),
-      env.DB.prepare("INSERT INTO tickets_history(id,store_id,business_date,service_id,number,final_status,created_at,ended_at) VALUES('new','s','2026-10-01','a','A002','done',0,?)").bind(now - 10 * 86400_000),
+      env.DB.prepare("INSERT INTO tickets_history(id,store_id,business_date,service_id,number,final_status,created_at,ended_at) VALUES('old','s','2054-01-01','a','A001','done',0,?)").bind(now - 91 * 86400_000),
+      env.DB.prepare("INSERT INTO tickets_history(id,store_id,business_date,service_id,number,final_status,created_at,ended_at) VALUES('new','s','2054-10-01','a','A002','done',0,?)").bind(now - 10 * 86400_000),
       env.DB.prepare("INSERT INTO push_subscriptions(ticket_id,store_id,endpoint,p256dh,auth,created_at) VALUES('p1','s','e','k','a',?)").bind(now - 25 * 3600_000),
     ]);
     const out = await runRetention(env, now);

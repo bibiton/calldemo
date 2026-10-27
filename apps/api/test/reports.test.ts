@@ -8,12 +8,15 @@ import { seedStore, type Seeded } from "./fixtures";
 
 const app = createApp();
 const MIN = 60_000;
-// 台北 2026-10-20：營業日當天 10:00 = UTC 02:00
-const D = "2026-10-20";
-const at = (hh: number, mm = 0) => Date.UTC(2026, 9, 20, hh - 8, mm);
+// 台北 2054-10-20：營業日當天 10:00 = UTC 02:00
+const D = "2054-10-20";
+const at = (hh: number, mm = 0) => Date.UTC(2054, 9, 20, hh - 8, mm);
 
-async function admin(s: Seeded) {
-  return ((await (await app.request("/api/store/auth/login", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email: s.adminEmail, password: s.adminPassword }) }, env)).json()) as any).accessToken as string;
+/** 區間報表只補算「今天以前」的日子：用固定時鐘（D 之後幾天），不依賴真實日期。 */
+const appAfterD = createApp({ now: () => Date.UTC(2054, 9, 25, 4) });
+
+async function admin(s: Seeded, a = app) {
+  return ((await (await a.request("/api/store/auth/login", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email: s.adminEmail, password: s.adminPassword }) }, env)).json()) as any).accessToken as string;
 }
 
 let n = 0;
@@ -39,7 +42,7 @@ async function seedHistory(s: Seeded) {
   rows.push(hist(s.storeId, B, { status: "done", created: at(18), called: at(18, 2), serving: at(18, 3), ended: at(18, 5) }));
   rows.push(hist(s.storeId, B, { status: "done", created: at(18, 10), called: at(18, 14), serving: at(18, 15), ended: at(18, 25) }));
   // 別天的資料不可混入
-  rows.push(hist(s.storeId, A, { status: "done", created: at(12), called: at(12, 1), ended: at(12, 2), bd: "2026-10-19" }));
+  rows.push(hist(s.storeId, A, { status: "done", created: at(12), called: at(12, 1), ended: at(12, 2), bd: "2054-10-19" }));
   await env.DB.batch(rows);
 }
 
@@ -78,7 +81,7 @@ describe("3.6 報表：daily_stats 與 tickets_history 一致", () => {
   it("每小時 Cron：門店當地 03 點時結算昨天", async () => {
     const s = await seedStore();
     await seedHistory(s);
-    const ctl = createScheduledController({ cron: "5 * * * *", scheduledTime: Date.UTC(2026, 9, 20, 19, 5) }); // 台北 10/21 03:05
+    const ctl = createScheduledController({ cron: "5 * * * *", scheduledTime: Date.UTC(2054, 9, 20, 19, 5) }); // 台北 10/21 03:05
     await worker.scheduled(ctl, env, createExecutionContext() as any);
     const n2 = (await env.DB.prepare("SELECT count(*) AS n FROM daily_stats WHERE store_id=? AND business_date=?").bind(s.storeId, D).first<{ n: number }>())!.n;
     expect(n2).toBe(2);
@@ -87,22 +90,22 @@ describe("3.6 報表：daily_stats 與 tickets_history 一致", () => {
   it("GET /api/store/reports/daily：區間內缺的日子即時補算；CSV 有 BOM 與中文表頭、數字一致", async () => {
     const s = await seedStore();
     await seedHistory(s);
-    const t = await admin(s);
-    const r = await app.request(`/api/store/reports/daily?from=2026-10-19&to=2026-10-20`, { headers: { authorization: `Bearer ${t}` } }, env);
+    const t = await admin(s, appAfterD);
+    const r = await appAfterD.request(`/api/store/reports/daily?from=2054-10-19&to=2054-10-20`, { headers: { authorization: `Bearer ${t}` } }, env);
     expect(r.status).toBe(200);
     const b: any = await r.json();
     const a = b.rows.find((x: any) => x.businessDate === D && x.serviceId.endsWith("_A"));
     expect(a).toMatchObject({ issued: 11, done: 8, skipped: 1, noShow: 1, cancelled: 1, avgWaitMs: 5.5 * MIN, p90WaitMs: 9 * MIN, peakHour: 12, serviceName: "內用" });
-    expect(b.rows.some((x: any) => x.businessDate === "2026-10-19")).toBe(true);
-    const csv = await app.request(`/api/store/reports/daily.csv?from=2026-10-19&to=2026-10-20`, { headers: { authorization: `Bearer ${t}` } }, env);
+    expect(b.rows.some((x: any) => x.businessDate === "2054-10-19")).toBe(true);
+    const csv = await appAfterD.request(`/api/store/reports/daily.csv?from=2054-10-19&to=2054-10-20`, { headers: { authorization: `Bearer ${t}` } }, env);
     expect(csv.headers.get("content-type")).toMatch(/text\/csv/);
     expect(csv.headers.get("content-disposition")).toMatch(/attachment/);
     const raw = new Uint8Array(await csv.arrayBuffer());
     expect([...raw.slice(0, 3)]).toEqual([0xef, 0xbb, 0xbf]); // UTF-8 BOM（.text() 會依規範去掉，所以看位元組）
     const lines = new TextDecoder().decode(raw).trim().split("\r\n");
     expect(lines[0]).toBe("日期,服務,取號數,完成,過號,未到,取消,完成率,平均等候(分),P90等候(分),平均服務(分),尖峰時段");
-    expect(lines).toContain("2026-10-20,A 內用,11,8,1,1,1,72.7%,5.5,9.0,4.0,12:00");
-    expect((await app.request(`/api/store/reports/daily?from=2026-10-01&to=2026-12-31`, { headers: { authorization: `Bearer ${t}` } }, env)).status).toBe(422);
+    expect(lines).toContain("2054-10-20,A 內用,11,8,1,1,1,72.7%,5.5,9.0,4.0,12:00");
+    expect((await appAfterD.request(`/api/store/reports/daily?from=2054-10-01&to=2054-12-31`, { headers: { authorization: `Bearer ${t}` } }, env)).status).toBe(422);
   });
 
   it("GET /api/store/reports/today：DO 即時數字（取號、等候、叫號中、完成）", async () => {

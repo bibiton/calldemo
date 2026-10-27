@@ -11,7 +11,7 @@ import { seedStore } from "./fixtures";
 
 const TEAM = "qcs-test.cloudflareaccess.com";
 const AUD = "aud-0123456789abcdef";
-const NOW = Date.UTC(2026, 9, 27, 4, 0);
+const NOW = Date.UTC(2054, 9, 27, 4, 0);
 const enc = new TextEncoder();
 
 async function rsaKey(kid: string) {

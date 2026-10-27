@@ -15,7 +15,8 @@ export interface Seeded {
   adminPassword: string;
 }
 
-const YEAR = 365 * 24 * 3600;
+/** 種子 token 的到期：固定在遙遠未來，對真實時間與 2054 年的固定時鐘（見 fixture-dates.test.ts）都有效。 */
+const TOKEN_EXP = Math.floor(Date.UTC(2100, 0, 1) / 1000);
 
 export async function seedStore(over: { status?: string; expiresAt?: number | null; maxStaff?: number; maxDevices?: number; adQuota?: number } = {}): Promise<Seeded> {
   const storeId = uniq("st");
@@ -37,7 +38,7 @@ export async function seedStore(over: { status?: string; expiresAt?: number | nu
     env.DB.prepare("INSERT INTO devices(id,store_id,kind,name,status,created_at) VALUES(?,?,?,?,?,?)").bind(`${storeId}_d1`, storeId, "display", "面板 1", "active", now),
     env.DB.prepare("INSERT INTO devices(id,store_id,kind,name,status,created_at) VALUES(?,?,?,?,?,?)").bind(`${storeId}_sd1`, storeId, "staff_device", "櫃台手機", "active", now),
   ]);
-  const exp = Math.floor(now / 1000) + YEAR;
+  const exp = TOKEN_EXP;
   const displayToken = await signJwt(env.JWT_SECRET, { sub: `${storeId}_d1`, role: "display", store_id: storeId, tv: 1, exp });
   const staffDeviceToken = await signJwt(env.JWT_SECRET, { sub: `${storeId}_sd1`, role: "staff_device", store_id: storeId, tv: 1, exp });
   return { storeId, code, displayToken, staffDeviceToken, staffUserId: `${storeId}_u1`, pin: "123456", adminId: `${storeId}_admin`, adminEmail, adminPassword: "correct-horse" };
