@@ -105,5 +105,6 @@ pnpm seed:demo [--env production --confirm] --reset   # 刪除 DEMO 門店全部
 - **冪等**：可重複執行；密碼、PIN、裝置 token 首次產生後存在輸出檔，重跑沿用（刪掉輸出檔才會重新產生）。`qr_key_version`、帳號的 `token_version` 不被覆寫。
 - **正式環境憑證**：只讀 `~/.config/queue-call-system/cf.env`（權限須 600），wrangler 以暫存 HOME＋環境變數 token 執行，不用全域 `wrangler login`，不印出 token。
 - `pnpm e2e:prod` 讀同一份正式環境輸出檔，所以要先跑過 seed。
-- **現況（2026-10-27）**：正式環境櫃台名稱仍是第一次 seed 的「1 號櫃台（內用）」這種長名稱（人員端頁首會換行）；程式已改為「1 號櫃台」，
-  下次執行 `pnpm seed:demo --env production --confirm` 即更新（UPSERT 覆寫名稱）。
+- **不會清當日隊列**：號碼與「近期叫號」存在 StoreQueueDO（`idFromName(storeId)`），seed 與 `--reset` 都只動 D1／R2／KV，碰不到。
+  當日殘留在 22:00 關店 alarm 時結算（未結束者記為 no_show／done 並寫入 `tickets_history`），「近期叫號」只列當天（門店時區）已叫號碼，過午夜自然清空。
+- **現況（2026-10-27 18:30）**：已重跑 `pnpm seed:demo --env production --confirm`（未 reset，PIN 不變），櫃台名稱為「1 號櫃台」，人員端頁首不再換行。
