@@ -31,7 +31,11 @@ for app in "${APPS[@]}"; do
   p="$(pages_project "$app")"; assert_call_name "$p"
   # 總後台同源呼叫 /api/*（ADR-047，經 Access）；其他 SPA 直連 call-api
   base="https://$API_HOST"; [[ "$app" == "admin" ]] && base=""
-  VITE_API_BASE="$base" pnpm --filter "@qcs/$app" build --mode "$ENV_NAME"
+  # VITE_AUDIO_BASE：門店後台試聽讀 call-display 的語音包；VITE_STORE_BASE：面板配對 QR 指向門店後台
+  VITE_API_BASE="$base" \
+  VITE_AUDIO_BASE="https://$(app_host display)/audio/" \
+  VITE_STORE_BASE="https://$(app_host store)" \
+    pnpm --filter "@qcs/$app" build --mode "$ENV_NAME"
   cfw pages deploy "$ROOT/apps/$app/dist" --project-name "$p" --branch main --commit-hash "$GIT_SHA"
   ok "Pages $p 已部署 → https://$(app_host "$app")"
 done

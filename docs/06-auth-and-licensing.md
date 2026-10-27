@@ -66,7 +66,7 @@ D1 `stores` 是權威來源；KV `license:<storeId>` 是快取。
 
 ```
 面板開機（無 device token）→ POST /api/display/pair/start → 回 deviceId＋6 位配對碼（10 分鐘）
-  面板顯示配對碼＋QR（內容：https://store.<domain>/pair?code=123456）
+  面板顯示配對碼＋QR（內容：https://call-store.jjoy.ai/pair?code=123456）
 店長在門店後台（或用手機掃此 QR）輸入配對碼 → 檢查 max_devices → devices.status = active
 面板輪詢 /api/display/pair/status（僅配對期間，每 3 秒，最多 10 分鐘）→ 取得 device token
 ```

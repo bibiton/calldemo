@@ -122,7 +122,8 @@ vars = { ENV = "production",
 2. 記下目前 Worker 版本 → PREV_VERSION
 3. D1 migration（只允許向下相容的 migration）
 4. wrangler deploy --env production --var VERSION:<git sha>；同步 ACCESS_ALLOWED_EMAILS secret（名單改了只要改 cf.env 再部署）
-5. 5 個前端：VITE_API_BASE=https://call-api.jjoy.ai（call-admin 為空字串＝同源 /api，ADR-047）pnpm --filter @qcs/<app> build --mode production
+5. 5 個前端：VITE_API_BASE=https://call-api.jjoy.ai（call-admin 為空字串＝同源 /api，ADR-047）、VITE_AUDIO_BASE=https://call-display.jjoy.ai/audio/、
+   VITE_STORE_BASE=https://call-store.jjoy.ai → pnpm --filter @qcs/<app> build --mode production
    → wrangler pages deploy apps/<app>/dist --project-name call-<sub>-production --branch main
 6. scripts/smoke.sh（在正式網址驗證）：
    a. GET https://call-api.jjoy.ai/health → 200 且 {version} 等於本次 commit
